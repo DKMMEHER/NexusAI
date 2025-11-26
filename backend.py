@@ -18,6 +18,8 @@ from helper import (
     handle_async_operation,
     get_operation_status,
     download_video_bytes,
+    stitch_videos,
+    get_video_object_from_operation,
 )
 
 logger = logging.getLogger("backend")
@@ -38,10 +40,15 @@ app.add_middleware(
 )
 
 # ----------------------------------------------------------------------
-# TEXT → VIDEO
+# ENDPOINTS
 # ----------------------------------------------------------------------
+
+@app.get("/")
+def root():
+    return {"message": "Veo 3.1 Backend is running"}
+
 @app.post("/text_to_video")
-async def text_to_video(
+async def text_to_video_endpoint(
     prompt: str = Form(...),
     model: str = Form("veo-3.1-fast-generate-preview"),
     duration_seconds: int = Form(8),
@@ -49,17 +56,14 @@ async def text_to_video(
     aspect_ratio: str = Form("16:9")
 ):
     try:
-        payload = generate_text_to_video(prompt, model, resolution, aspect_ratio, duration_seconds)
-        return {"ok": True, **payload}
+        result = generate_text_to_video(prompt, model, resolution=resolution, aspect_ratio=aspect_ratio, duration_seconds=duration_seconds)
+        return {"ok": True, **result}
     except Exception as e:
-        logger.exception("Error in /text_to_video")
+        logger.exception("text_to_video failed")
         raise HTTPException(status_code=500, detail=str(e))
 
-# ----------------------------------------------------------------------
-# IMAGE → VIDEO
-# ----------------------------------------------------------------------
 @app.post("/image_to_video")
-async def image_to_video(
+async def image_to_video_endpoint(
     prompt: str = Form(...),
     image: UploadFile = File(...),
     model: str = Form("veo-3.1-fast-generate-preview"),
@@ -68,61 +72,35 @@ async def image_to_video(
     aspect_ratio: str = Form("16:9")
 ):
     try:
-        # Read once and log safely
-        contents = await image.read()
-        size = len(contents)
-        logger.info(f"Image upload received: name={image.filename}, size={size} bytes")
-
-        if size == 0:
-            raise HTTPException(status_code=400, detail="Uploaded image is empty or unreadable.")
-
-        # Generate video (pass bytes directly)
-        payload = generate_image_to_video(prompt, contents, model, resolution, aspect_ratio, duration_seconds)
-        return {"ok": True, **payload}
-
-    except HTTPException:
-        # re-raise HTTPExceptions unchanged
-        raise
+        image_bytes = await image.read()
+        result = generate_image_to_video(prompt, image_bytes, model, resolution=resolution, aspect_ratio=aspect_ratio, duration_seconds=duration_seconds)
+        return {"ok": True, **result}
     except Exception as e:
-        logger.exception("Error in /image_to_video")
-        error_msg = str(e)
-        if "all attempts including REST fallback failed" in error_msg:
-            detail = "Failed to generate video. Please check your image format or try again later."
-        else:
-            detail = f"An error occurred: {error_msg}"
-        raise HTTPException(status_code=500, detail=detail)
+        logger.exception("image_to_video failed")
+        raise HTTPException(status_code=500, detail=str(e))
 
-# ----------------------------------------------------------------------
-# USING REFERENCE IMAGES
-# ----------------------------------------------------------------------
 @app.post("/video_from_reference_images")
-async def video_from_reference_images(
+async def video_from_reference_images_endpoint(
     prompt: str = Form(...),
-    reference_images: List[UploadFile] = File(...),
+    images: List[UploadFile] = File(...),
+    model: str = Form("veo-3.1-generate-preview"),  # Default to supported model
     duration_seconds: int = Form(8),
     resolution: str = Form("1080p"),
     aspect_ratio: str = Form("16:9")
 ):
-    """
-    Generate a video using multiple reference images + prompt.
-
-    Matches Streamlit mode: "Using Reference Images".
-    """
     try:
-        if not reference_images:
-            raise HTTPException(status_code=400, detail="No reference images uploaded")
-
-        # Read all uploaded images into memory
-        image_bytes_list = [await f.read() for f in reference_images]
-
-        # IMPORTANT: model is a plain string, NOT Form(...)
+        # Read all images
+        image_bytes_list = []
+        for img in images:
+            image_bytes_list.append(await img.read())
+            
         result = generate_video_from_reference_images(
-            prompt=prompt,
-            images=image_bytes_list,
-            model = SUPPORTED_MODEL,
-            resolution=resolution,
-            aspect_ratio=aspect_ratio,
-            duration_seconds=duration_seconds,
+            prompt, 
+            image_bytes_list, 
+            model, 
+            resolution=resolution, 
+            aspect_ratio=aspect_ratio, 
+            duration_seconds=duration_seconds
         )
         return {"ok": True, **result}
     except HTTPException:
@@ -130,42 +108,29 @@ async def video_from_reference_images(
     except Exception as e:
         logger.exception("video_from_reference_images failed")
         raise HTTPException(status_code=500, detail=str(e))
-# ----------------------------------------------------------------------
-# FIRST + LAST FRAMES → VIDEO
-# ----------------------------------------------------------------------
+
 @app.post("/video_from_first_last_frames")
-async def video_from_first_last_frames(
+async def video_from_first_last_frames_endpoint(
     prompt: str = Form(...),
     first_frame: UploadFile = File(...),
     last_frame: UploadFile = File(...),
+    model: str = Form("veo-3.1-generate-preview"), # Default to supported model
     duration_seconds: int = Form(8),
     resolution: str = Form("1080p"),
     aspect_ratio: str = Form("16:9")
 ):
-    """
-    Generate a video using first + last frame images + prompt.
-
-    Matches Streamlit mode: "Using First + Last Frames".
-    """
     try:
-        if first_frame is None or last_frame is None:
-            raise HTTPException(
-                status_code=400,
-                detail="Both first_frame and last_frame are required",
-            )
-
         first_bytes = await first_frame.read()
         last_bytes = await last_frame.read()
-
-        # Again, model is a string, not Form(...)
+        
         result = generate_video_from_first_last_frames(
-            prompt=prompt,
-            first=first_bytes,
-            last=last_bytes,
-            model = SUPPORTED_MODEL,
-            resolution=resolution,
-            aspect_ratio=aspect_ratio,
-            duration_seconds=duration_seconds,
+            prompt, 
+            first_bytes, 
+            last_bytes, 
+            model, 
+            resolution=resolution, 
+            aspect_ratio=aspect_ratio, 
+            duration_seconds=duration_seconds
         )
         return {"ok": True, **result}
     except HTTPException:
@@ -178,18 +143,72 @@ async def video_from_first_last_frames(
 @app.post("/extend_veo_video")
 async def extend_veo_video_endpoint(
     prompt: str = Form(...),
-    base_video: UploadFile = File(...),
+    base_video: Optional[UploadFile] = File(None),
+    previous_operation_name: Optional[str] = Form(None),
     model: str = Form("veo-3.1-fast-generate-preview"),
     duration_seconds: int = Form(8),
     resolution: str = Form("1080p"),
     aspect_ratio: str = Form("16:9")
 ):
     try:
-        video_bytes = await base_video.read()
-        payload = extend_veo_video(prompt, video_bytes, model, resolution=resolution, aspect_ratio=aspect_ratio, duration_seconds=duration_seconds)
+        prior_video_obj = None
+        video_bytes = None
+        
+        # Scenario 1: Extend from Gallery (using previous operation)
+        if previous_operation_name:
+            logger.info(f"Extending from previous operation: {previous_operation_name}")
+            prior_video_obj = get_video_object_from_operation(previous_operation_name)
+            if not prior_video_obj:
+                raise HTTPException(status_code=400, detail="Could not retrieve video object from previous operation. It might be expired or failed.")
+            
+            # Try to download the video bytes from the previous operation to save as base for THIS extension
+            try:
+                prev_bytes, _ = download_video_bytes(previous_operation_name)
+                if prev_bytes:
+                    video_bytes = prev_bytes
+            except Exception as e:
+                logger.warning(f"Could not download bytes for previous operation: {e}")
+
+        # Scenario 2: Extend from Upload
+        elif base_video:
+            video_bytes = await base_video.read()
+        else:
+            raise HTTPException(status_code=400, detail="Either base_video or previous_operation_name must be provided")
+
+        if not video_bytes and not prior_video_obj:
+             raise HTTPException(status_code=400, detail="Failed to get video content for extension")
+
+        if video_bytes is None:
+             video_bytes = b"" # Dummy if we strictly use prior_obj, but stitching will fail.
+        
+        payload = extend_veo_video(
+            prompt, 
+            video_bytes, 
+            model, 
+            prior_generated_video_obj=prior_video_obj,
+            resolution=resolution, 
+            aspect_ratio=aspect_ratio, 
+            duration_seconds=duration_seconds
+        )
+        
+        # Save base video for later stitching ONLY if we uploaded a file (Scenario 2).
+        # If we extended from gallery (Scenario 1), the API returns the FULL video, so stitching is not needed (and causes duplication).
+        print(f"DEBUG: extend_veo_video payload: {payload}")
+        if payload.get("ok", True) and base_video: 
+            op_name = payload.get("operation_name")
+            if op_name and video_bytes:
+                safe_op_name = op_name.replace("/", "_")
+                base_path = f"temp_base_{safe_op_name}.mp4"
+                with open(base_path, "wb") as f:
+                    f.write(video_bytes)
+                print(f"DEBUG: Saved base video to {base_path} (size: {len(video_bytes)})")
+                logger.info(f"Saved base video for stitching: {base_path}")
+                
         return {"ok": True, **payload}
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.exception("Error in /extend_veo_video")
+        logger.exception("extend_veo_video failed")
         raise HTTPException(status_code=500, detail=str(e))
 
 # ----------------------------------------------------------------------
@@ -220,6 +239,33 @@ def download(operation_name: str):
     data, filename = download_video_bytes(operation_name)
     if not data:
         raise HTTPException(status_code=404, detail="Video not available or incomplete")
+    
+    # Check if we have a base video to stitch
+    safe_op_name = operation_name.replace("/", "_")
+    base_path = f"temp_base_{safe_op_name}.mp4"
+    
+    print(f"DEBUG: Download request for {operation_name}")
+    print(f"DEBUG: Looking for base video at {base_path}")
+    print(f"DEBUG: File exists? {os.path.exists(base_path)}")
+    
+    if os.path.exists(base_path):
+        logger.info(f"Found base video for stitching: {base_path}")
+        stitched_data = stitch_videos(base_path, data)
+        if stitched_data:
+            data = stitched_data
+            logger.info("Video stitching successful")
+            print("DEBUG: Stitching successful")
+        else:
+            logger.warning("Video stitching failed, returning extension only")
+            print("DEBUG: Stitching failed (returned None)")
+        
+        # Cleanup base video
+        try:
+            os.remove(base_path)
+            logger.info(f"Deleted temp base video: {base_path}")
+        except Exception as e:
+            logger.warning(f"Failed to delete temp base video: {e}")
+
     return StreamingResponse(io.BytesIO(data), media_type="video/mp4",
                              headers={"Content-Disposition": f'attachment; filename="{filename}"'})
 
@@ -246,4 +292,4 @@ def save_local(operation_name: str):
 # ----------------------------------------------------------------------
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("backend:app", host="127.0.0.1", port=8000, reload=True)
+    uvicorn.run("backend:app", host="127.0.0.1", port=8002, reload=True)

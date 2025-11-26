@@ -1,18 +1,24 @@
 import os
-import time
-import io
-import logging
-from datetime import datetime
-from typing import Any, Dict, Optional, Tuple, List
-from dotenv import load_dotenv
-import mimetypes
-import uuid
-import inspect
-from pathlib import Path
-import base64
 import json
-import  requests, json, base64, logging
-logger = logging.getLogger("helper")
+import time
+import base64
+import logging
+import requests
+import uuid
+import io
+import inspect
+import mimetypes
+from pathlib import Path
+from typing import Optional, Dict, Any, List, Tuple, Union
+from datetime import datetime, timedelta, timezone
+from dotenv import load_dotenv
+
+# Try importing moviepy, handle if missing
+try:
+    from moviepy import VideoFileClip, concatenate_videoclips
+    MOVIEPY_AVAILABLE = True
+except ImportError:
+    MOVIEPY_AVAILABLE = False
 
 load_dotenv()
 logger = logging.getLogger("helper")
@@ -887,6 +893,12 @@ def extend_veo_video(prompt: str, video_bytes: bytes, model: str, prior_generate
             op = client.models.generate_videos(model=model, video=prior_generated_video_obj, prompt=prompt)
             return {"operation_name": get_operation_name(op), "message": "video-extend started (using prior generated-video object)"}
         except Exception as e:
+            error_str = str(e)
+            if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
+                friendly_msg = "You have reached your daily limit for video generation. Please try again later."
+                logger.warning(f"extend_veo_video: Quota exceeded: {friendly_msg}")
+                raise RuntimeError(friendly_msg)
+            
             logger.exception("extend_veo_video: SDK generate_videos failed with prior_generated_video_obj: %s", e)
             raise RuntimeError(f"extend_veo_video: SDK generate_videos with provided prior_generated_video_obj failed: {e}")
 
@@ -897,7 +909,50 @@ def extend_veo_video(prompt: str, video_bytes: bytes, model: str, prior_generate
             fh.write(video_bytes)
         logger.info("extend_veo_video: wrote temp video %s (%d bytes)", tmp_path, os.path.getsize(tmp_path))
 
-        # upload into GenAI files (we already have robust upload_file)
+        # FORCE Fallback Strategy: Extract Last Frame and use Image-to-Video.
+        # The direct SDK call often results in Video-to-Video (Variation) instead of Extension for raw files.
+        # To guarantee consistency (stitching), we explicitly use the last frame.
+        logger.info("extend_veo_video: Forcing Last Frame -> Image-to-Video strategy for consistency.")
+        
+        if not MOVIEPY_AVAILABLE:
+             logger.warning("extend_veo_video: moviepy not available, falling back to standard SDK attempt.")
+             print("DEBUG: MOVIEPY_AVAILABLE is False!")
+             # Fall through to original logic if moviepy is missing
+             raise ImportError("moviepy not available")
+        else:
+             print("DEBUG: MOVIEPY_AVAILABLE is True. Proceeding with frame extraction.")
+
+        # Extract last frame from the temp video file
+        print(f"DEBUG: Extracting last frame from {tmp_path}")
+        with VideoFileClip(tmp_path) as clip:
+            print(f"DEBUG: Clip duration: {clip.duration}")
+            last_frame_time = max(0, clip.duration - 0.1)
+            last_frame_path = f"temp_frame_{uuid.uuid4().hex}.jpg"
+            clip.save_frame(last_frame_path, t=last_frame_time)
+        
+        print(f"DEBUG: Extracted frame to {last_frame_path}")
+        
+        logger.info(f"extend_veo_video: extracted last frame to {last_frame_path}")
+
+        # Upload the frame
+        uploaded_frame = upload_file(client, last_frame_path)
+        
+        # Call generate_videos with the image (Image-to-Video)
+        op = client.models.generate_videos(model=model, prompt=prompt, image=uploaded_frame, config={})
+        
+        # Cleanup frame
+        if os.path.exists(last_frame_path):
+            os.remove(last_frame_path)
+
+        return {"operation_name": get_operation_name(op), "message": "video-extend started (forced: last-frame image-to-video)"}
+
+    except Exception as e:
+        logger.info(f"extend_veo_video: Last Frame strategy failed or skipped ({e}). Trying standard SDK methods.")
+        # Proceed with original SDK attempts as backup
+        pass
+
+    try:
+        # Upload the video file itself
         uploaded = upload_file(client, tmp_path)
         logger.info("extend_veo_video: uploaded file object type=%s", type(uploaded))
 
@@ -929,24 +984,12 @@ def extend_veo_video(prompt: str, video_bytes: bytes, model: str, prior_generate
             except Exception as e:
                 last_error = e
                 logger.info("extend_veo_video: could not construct typed instance for %s: %s", name, e)
+                
+        # If we reach here, neither forced strategy nor standard SDK worked
+        raise RuntimeError(f"extend_veo_video: All attempts failed. Last error: {last_error}")
 
-        # If we reach here: no typed construction succeeded. According to docs, the model expects a
-        # *generated-video object produced by the model itself*. So we must ask the user to follow the docs.
-        raise RuntimeError(
-            "extend_veo_video: Could not produce a proper 'generated-video' object from your local file. "
-            "Per Veo docs you must pass a video object returned by a previous generate_videos call (e.g. "
-            "`operation.response.generated_videos[0].video`).\n\n"
-            "Two options:\n"
-            " 1) If you actually have an earlier operation result, pass that object into this function as "
-            "`prior_generated_video_obj` (preferred). Example flow in docs:\n"
-            "     op = client.models.generate_videos(...)\n"
-            "     prior_video = op.response.generated_videos[0].video\n"
-            "     extend_veo_video(prompt, video_bytes=None, model=model, prior_generated_video_obj=prior_video)\n\n"
-            " 2) If you only have a local video file and want to extend it, first *generate* a short video from it "
-            "via the model's supported input flow (for example, use an initial generation that references the file "
-            "and produces a generated_video object). Then pass the generated object's `.video` to this function.\n\n"
-            f"Last SDK/attempt error: {last_error}"
-        )
+    except Exception as e:
+        raise RuntimeError(f"extend_veo_video: failed to upload video or execute fallback: {e}")
 
     finally:
         try:
@@ -1042,13 +1085,15 @@ def handle_async_operation(operation_name: str) -> Dict[str, Any]:
 def get_operation_status(operation_name: str) -> Dict[str, Any]:
     client = create_genai_client()
     try:
-        op = client.operations.get(operation_name)
-    except Exception as e:
+        # Try passing name as keyword arg first, as SDK seems to expect object or kwargs
+        op = client.operations.get(name=operation_name)
+    except Exception:
         try:
             if types and hasattr(types, "GenerateVideosOperation"):
                 op = client.operations.get(types.GenerateVideosOperation(name=operation_name))
             else:
-                raise
+                # Fallback to positional if kwargs fail (though unlikely given the error)
+                op = client.operations.get(operation_name)
         except Exception as e2:
             logger.exception("get_operation_status: failed to get operation")
             return {"done": False, "status": "ERROR", "progress": None, "eta_seconds": None, "message": f"failed to get operation: {e2}", "raw": None}
@@ -1083,30 +1128,28 @@ def get_operation_status(operation_name: str) -> Dict[str, Any]:
                     pass
         raw = str(op)
         return {
+            "operation_name": operation_name,
             "done": done,
             "status": "COMPLETE" if done else "POLLING",
             "progress": progress,
             "eta_seconds": eta_seconds,
-            "message": "operation complete" if done else f"progress={progress} eta={eta_seconds}",
-            "raw": raw
+            "message": "operation complete" if done else "operation running",
+            "raw": raw,
         }
     except Exception as e:
-        logger.exception("get_operation_status: unexpected error while parsing operation object")
-        return {"done": False, "status": "ERROR", "progress": None, "eta_seconds": None, "message": str(e), "raw": str(op)}
-
+        logger.exception("get_operation_status: failed to parse operation")
+        return {"done": False, "status": "ERROR", "message": f"failed to parse operation: {e}", "raw": str(op)}
 def download_video_bytes(operation_name: str) -> Tuple[Optional[bytes], Optional[str]]:
     client = create_genai_client()
+    op = None
     try:
-        op = client.operations.get(operation_name)
-    except Exception:
-        try:
-            if types and hasattr(types, "GenerateVideosOperation"):
-                op = client.operations.get(types.GenerateVideosOperation(name=operation_name))
-            else:
-                raise
-        except Exception as e:
-            logger.error(f"download_video_bytes: failed to get operation: {e}")
-            return None, None
+        if types and hasattr(types, "GenerateVideosOperation"):
+            op = client.operations.get(types.GenerateVideosOperation(name=operation_name))
+        else:
+            op = client.operations.get(name=operation_name)
+    except Exception as e:
+        logger.error(f"download_video_bytes: failed to get operation: {e}")
+        return None, None
 
     if isinstance(op, str):
         logger.info(f"download_video_bytes: operations.get returned str -> {op}")
@@ -1141,7 +1184,9 @@ def download_video_bytes(operation_name: str) -> Tuple[Optional[bytes], Optional
         data = downloaded.read()
     else:
         data = bytes(downloaded)
-    filename = f"video_{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}.mp4"
+    # IST is UTC + 5:30
+    ist_time = datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)
+    filename = f"video_{ist_time.strftime('%Y_%m_%d_%H_%M_%S')}.mp4"
     return data, filename
 
 def generate_image_to_video_rest(prompt: str, image_bytes: bytes, model: str) -> Dict[str, Any]:
@@ -1238,3 +1283,94 @@ def generate_image_to_video_rest(prompt: str, image_bytes: bytes, model: str) ->
 
     logger.info("generate_image_to_video_rest: started operation %s", op_name)
     return {"operation_name": op_name, "message": "image-to-video operation started (via REST)"}
+
+def stitch_videos(base_video_path: str, extension_bytes: bytes) -> Optional[bytes]:
+    """
+    Stitches the base video (file path) and the extension video (bytes) together.
+    Returns the bytes of the combined video.
+    """
+    if not MOVIEPY_AVAILABLE:
+        logger.warning("stitch_videos: moviepy not available, returning extension only")
+        return None
+
+    try:
+        # Save extension bytes to temp file
+        ext_path = f"temp_ext_{uuid.uuid4().hex}.mp4"
+        output_path = f"temp_stitched_{uuid.uuid4().hex}.mp4"
+        
+        with open(ext_path, "wb") as f:
+            f.write(extension_bytes)
+            
+        logger.info(f"stitch_videos: stitching {base_video_path} + {ext_path}")
+        
+        # Load clips
+        print(f"DEBUG: stitch_videos called with base={base_video_path}")
+        clip1 = VideoFileClip(base_video_path)
+        clip2 = VideoFileClip(ext_path)
+        
+        logger.info(f"stitch_videos: clip1 duration={clip1.duration}, clip2 duration={clip2.duration}")
+        print(f"DEBUG: Stitching {base_video_path} ({clip1.duration}s) + {ext_path} ({clip2.duration}s)")
+        
+        # Concatenate with method="compose" to handle different resolutions/fps
+        final_clip = concatenate_videoclips([clip1, clip2], method="compose")
+        
+        # Write output
+        # Use 'libx264' codec for compatibility, preset 'ultrafast' for speed
+        # Explicitly set fps to match the first clip to avoid issues
+        final_clip.write_videofile(output_path, codec="libx264", audio_codec="aac", preset="ultrafast", fps=clip1.fps or 24, logger=None)
+        
+        # Read back bytes
+        with open(output_path, "rb") as f:
+            stitched_bytes = f.read()
+        
+        print(f"DEBUG: Stitching successful! Final size: {len(stitched_bytes)} bytes")
+            
+        # Cleanup
+        clip1.close()
+        clip2.close()
+        final_clip.close()
+        
+        if os.path.exists(ext_path):
+            os.remove(ext_path)
+        if os.path.exists(output_path):
+            os.remove(output_path)
+            
+        return stitched_bytes
+        
+    except Exception as e:
+        logger.exception("stitch_videos: failed to stitch videos")
+        print(f"DEBUG: Stitching FAILED: {e}")
+        return None
+
+def get_video_object_from_operation(operation_name: str) -> Optional[Any]:
+    """
+    Retrieves the generated video object from a completed operation.
+    This object can be passed to extend_veo_video as 'prior_generated_video_obj'.
+    """
+    client = create_genai_client()
+    try:
+        if types and hasattr(types, "GenerateVideosOperation"):
+             op = client.operations.get(types.GenerateVideosOperation(name=operation_name))
+        else:
+             op = client.operations.get(name=operation_name)
+             
+        if not op.done:
+            logger.warning(f"get_video_object_from_operation: operation {operation_name} is not done")
+            return None
+        
+        # The result should contain generated_videos
+        # We need to access it in a way that works with the SDK types
+        if hasattr(op, "result") and op.result:
+            res = op.result
+            if hasattr(res, "generated_videos") and res.generated_videos:
+                return res.generated_videos[0].video
+            # Fallback for dict-like access if needed (though SDK usually returns objects)
+            if isinstance(res, dict) and "generated_videos" in res:
+                 return res["generated_videos"][0]["video"]
+                 
+        logger.warning(f"get_video_object_from_operation: could not find generated_videos in result for {operation_name}")
+        return None
+        
+    except Exception as e:
+        logger.exception(f"get_video_object_from_operation: failed for {operation_name}")
+        return None

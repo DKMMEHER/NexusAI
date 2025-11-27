@@ -19,6 +19,7 @@ export default defineConfig({
       '/extend_veo_video': 'http://127.0.0.1:8002',
       '/status': 'http://127.0.0.1:8002',
       '/download': 'http://127.0.0.1:8002',
+      '/image': 'http://127.0.0.1:8002',
     }
   }
 })

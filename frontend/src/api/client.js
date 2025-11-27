@@ -17,4 +17,13 @@ export const api = {
     getJobStatus: (operationName) => client.get(`/status/${operationName}`), // Added getJobStatus
     // Helper to construct download URL
     getDownloadUrl: (operationName) => `/download/${operationName}`,
+
+    // Image Generation
+    generateImage: (formData) => client.post('/image/generate', formData),
+    editImage: (formData) => client.post('/image/edit', formData),
+    virtualTryOn: (formData) => client.post('/image/virtual_try_on', formData),
+    createAds: (formData) => client.post('/image/create_ads', formData),
+    mergeImages: (formData) => client.post('/image/merge_images', formData),
+    generateScenes: (formData) => client.post('/image/generate_scenes', formData),
+    restoreImage: (formData) => client.post('/image/restore_old_image', formData),
 };

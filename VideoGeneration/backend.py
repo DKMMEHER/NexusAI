@@ -9,21 +9,40 @@ from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 load_dotenv()
 
-from helper import (
-    generate_text_to_video,
-    generate_image_to_video,
-    generate_video_from_reference_images,
-    generate_video_from_first_last_frames,
-    extend_veo_video,
-    handle_async_operation,
-    get_operation_status,
-    download_video_bytes,
-    stitch_videos,
-    get_video_object_from_operation,
-)
+try:
+    from VideoGeneration.helper import (
+        generate_text_to_video,
+        generate_image_to_video,
+        generate_video_from_reference_images,
+        generate_video_from_first_last_frames,
+        extend_veo_video,
+        handle_async_operation,
+        get_operation_status,
+        download_video_bytes,
+        stitch_videos,
+        get_video_object_from_operation,
+    )
+except ImportError:
+    from helper import (
+        generate_text_to_video,
+        generate_image_to_video,
+        generate_video_from_reference_images,
+        generate_video_from_first_last_frames,
+        extend_veo_video,
+        handle_async_operation,
+        get_operation_status,
+        download_video_bytes,
+        stitch_videos,
+        get_video_object_from_operation,
+    )
 
+import sys
 logger = logging.getLogger("backend")
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+logging.basicConfig(
+    level=logging.INFO, 
+    format="%(asctime)s %(levelname)s %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
 
 app = FastAPI(title="Veo 3.1 Backend Suite")
 DEFAULT_MODEL = os.getenv("VEO_MODEL_NAME", "veo-3.1-fast-generate-preview")
@@ -33,11 +52,18 @@ SUPPORTED_MODEL = os.getenv("VEO_SUPPORTED_MODEL", "veo-3.1-generate-preview")
 # Allow Streamlit (port 8501)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8501", "http://127.0.0.1:8501"],
+    allow_origins=["http://localhost:8501", "http://127.0.0.1:8501", "http://localhost:5173", "http://127.0.0.1:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+try:
+    from ImageGeneration.backend import router as image_router
+    app.include_router(image_router, prefix="/image", tags=["Image Generation"])
+    logger.info("Mounted Image Generation router at /image")
+except Exception as e:
+    logger.error(f"Failed to mount Image Generation router: {e}")
 
 # ----------------------------------------------------------------------
 # ENDPOINTS

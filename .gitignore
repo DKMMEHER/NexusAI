@@ -18,6 +18,5 @@ Dependencies/ffmpeg-*/
 Dependencies/*.exe
 
 # Project-specific ignores
-Generated_Video/
 Backup/
 Pipeline.txt

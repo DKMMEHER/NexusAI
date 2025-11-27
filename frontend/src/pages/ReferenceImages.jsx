@@ -1,59 +1,75 @@
 import React, { useState } from 'react';
 import { Sparkles } from 'lucide-react';
-import { api } from '../api/client';
+import axios from 'axios';
 import JobCard from '../components/JobCard';
 import FileUploader from '../components/FileUploader';
 import AdvancedSettings from '../components/AdvancedSettings';
+import { useJobs } from '../contexts/JobsContext';
+import { toast } from 'sonner';
+import { api } from '../api/client';
 
 const ReferenceImages = () => {
     const [prompt, setPrompt] = useState('');
     const [files, setFiles] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const { jobs, addJob, updateJobStatus } = useJobs();
+
+    // Filter only reference_images jobs
+    const referenceJobs = jobs.filter(job => job.type === 'reference_images');
+
     const [settings, setSettings] = useState({
-        model: 'veo-3.1-generate-preview',
+        model: 'veo-3.1-generate-preview', // Default to supported model
         aspect_ratio: '16:9',
         resolution: '1080p',
-        duration_seconds: '8'
+        duration_seconds: 8
     });
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
-    const [jobs, setJobs] = useState([]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setError('');
-        if (!prompt.trim() || files.length === 0) {
-            setError("Please upload reference images and enter a prompt");
+
+        if (!prompt.trim() || files.length < 2) {
+            toast.error("Please upload at least 2 reference images and enter a prompt");
             return;
         }
 
         setLoading(true);
+        const toastId = toast.loading("Submitting job...");
+
+        const newJob = {
+            id: Date.now(),
+            type: 'reference_images',
+            status: 'processing',
+            prompt,
+            timestamp: new Date().toISOString(),
+            settings
+        };
+
+        addJob(newJob);
+
         try {
             const formData = new FormData();
             formData.append('prompt', prompt);
-            files.forEach((file) => {
+            files.forEach(file => {
                 formData.append('reference_images', file);
             });
-            formData.append('aspect_ratio', settings.aspect_ratio);
-            formData.append('resolution', settings.resolution);
-            formData.append('duration_seconds', settings.duration_seconds);
+            Object.keys(settings).forEach(key => formData.append(key, settings[key]));
 
-            const res = await api.referenceImages(formData);
-            if (res.data.ok) {
-                const newJob = {
-                    id: res.data.operation_name || Date.now().toString(),
-                    status: 'queued',
-                    prompt: prompt,
-                    type: 'reference_images'
-                };
-                setJobs([newJob, ...jobs]);
+            const response = await api.referenceImages(formData);
+
+            if (response.data.ok) {
+                updateJobStatus(newJob.id, 'processing', response.data);
+                toast.success("Job started successfully!", { id: toastId });
                 setPrompt('');
                 setFiles([]);
             } else {
-                setError("Backend returned an error: " + JSON.stringify(res.data));
+                updateJobStatus(newJob.id, 'failed');
+                toast.error("Backend returned an error", { id: toastId });
             }
         } catch (err) {
-            console.error("Failed to submit job", err);
-            setError(err.response?.data?.detail || "Failed to submit job. Check backend logs.");
+            console.error("Failed to generate video", err);
+            const errorMessage = err.response?.data?.detail || 'Failed to generate video';
+            toast.error(errorMessage, { id: toastId });
+            updateJobStatus(newJob.id, 'failed');
         } finally {
             setLoading(false);
         }
@@ -62,13 +78,13 @@ const ReferenceImages = () => {
     return (
         <div>
             <div className="mb-8">
-                <h1 className="text-2xl font-bold text-slate-900">Reference Images</h1>
-                <p className="text-slate-500">Generate consistent characters and styles using multiple references.</p>
+                <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Reference Images</h1>
+                <p className="text-slate-500 dark:text-slate-400">Generate consistent characters and styles using multiple references.</p>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-2 space-y-6">
-                    <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+                    <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm transition-colors duration-200">
                         <form onSubmit={handleSubmit} className="space-y-6">
                             <FileUploader
                                 label="Reference Images (2-4 recommended)"
@@ -78,22 +94,16 @@ const ReferenceImages = () => {
                             />
 
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-2">Prompt</label>
+                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Prompt</label>
                                 <textarea
                                     value={prompt}
                                     onChange={(e) => setPrompt(e.target.value)}
                                     placeholder="Describe the scene..."
-                                    className="w-full h-32 p-4 rounded-xl border border-slate-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none resize-none transition-all text-slate-700 placeholder:text-slate-400"
+                                    className="w-full h-32 p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none resize-none transition-all text-slate-700 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500"
                                 />
                             </div>
 
                             <AdvancedSettings settings={settings} setSettings={setSettings} showModel={false} />
-
-                            {error && (
-                                <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-lg text-sm border border-red-100">
-                                    {error}
-                                </div>
-                            )}
 
                             <div className="flex justify-end">
                                 <button
@@ -116,13 +126,13 @@ const ReferenceImages = () => {
                 </div>
 
                 <div className="space-y-4">
-                    <h2 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Recent Jobs</h2>
-                    {jobs.length === 0 ? (
-                        <div className="text-center py-10 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                            <p className="text-slate-400 text-sm">No jobs yet</p>
+                    <h2 className="text-sm font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Recent Jobs</h2>
+                    {referenceJobs.length === 0 ? (
+                        <div className="text-center py-10 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
+                            <p className="text-slate-400 dark:text-slate-500 text-sm">No jobs yet</p>
                         </div>
                     ) : (
-                        jobs.map(job => <JobCard key={job.id} job={job} />)
+                        referenceJobs.map(job => <JobCard key={job.id} job={job} />)
                     )}
                 </div>
             </div>

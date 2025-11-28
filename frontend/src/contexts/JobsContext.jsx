@@ -19,12 +19,31 @@ export const JobsProvider = ({ children }) => {
         return [];
     });
 
+    const MAX_JOBS = 20;
+
     useEffect(() => {
-        localStorage.setItem('veo_jobs', JSON.stringify(jobs));
+        try {
+            localStorage.setItem('veo_jobs', JSON.stringify(jobs));
+        } catch (error) {
+            console.error("Failed to save jobs to localStorage:", error);
+            // If quota exceeded, try to save fewer jobs
+            if (error.name === 'QuotaExceededError' || error.code === 22) {
+                const reducedJobs = jobs.slice(0, 5); // Keep only 5 latest
+                try {
+                    localStorage.setItem('veo_jobs', JSON.stringify(reducedJobs));
+                    setJobs(reducedJobs); // Update state to match storage
+                } catch (retryError) {
+                    console.error("Still failed to save reduced jobs:", retryError);
+                }
+            }
+        }
     }, [jobs]);
 
     const addJob = (job) => {
-        setJobs(prev => [job, ...prev]);
+        setJobs(prev => {
+            const newJobs = [job, ...prev];
+            return newJobs.slice(0, MAX_JOBS);
+        });
     };
 
     const updateJobStatus = (jobId, status, result = null) => {

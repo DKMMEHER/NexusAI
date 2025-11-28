@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Video, Image, Layers, Film, FastForward, Activity, Sun, Moon, Grid, LayoutDashboard } from 'lucide-react';
+import { Video, Image, Layers, Film, FastForward, Activity, Sun, Moon, Grid, LayoutDashboard, Wand2, Shirt, Megaphone, Clapperboard, History } from 'lucide-react';
 import clsx from 'clsx';
 
 const NavItem = ({ to, icon: Icon, label }) => {
@@ -24,6 +24,7 @@ const NavItem = ({ to, icon: Icon, label }) => {
 };
 
 const Layout = ({ children }) => {
+    const location = useLocation();
     const [darkMode, setDarkMode] = React.useState(() => {
         if (typeof window !== 'undefined') {
             return localStorage.getItem('theme') === 'dark' ||
@@ -33,14 +34,23 @@ const Layout = ({ children }) => {
     });
 
     React.useEffect(() => {
+        console.log("Dark mode state changed:", darkMode);
         if (darkMode) {
             document.documentElement.classList.add('dark');
             localStorage.setItem('theme', 'dark');
+            console.log("Added dark class");
         } else {
             document.documentElement.classList.remove('dark');
             localStorage.setItem('theme', 'light');
+            console.log("Removed dark class");
         }
     }, [darkMode]);
+
+    // Helper to check if current path matches a list of base paths
+    const isPathActive = (paths) => {
+        const currentPath = location.pathname.replace(/\/$/, '') || '/';
+        return paths.some(path => currentPath.startsWith(path));
+    };
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex transition-colors duration-200">
@@ -56,8 +66,8 @@ const Layout = ({ children }) => {
                     <div className="text-xs text-slate-400 mt-1 ml-10">Creator Suite</div>
                 </div>
 
-                <nav className="flex-1 px-4 space-y-1 mt-4">
-                    {['/text-to-video', '/image-to-video', '/reference-images', '/first-last-frames', '/extend-video', '/gallery', '/video-stats'].includes(location.pathname.replace(/\/$/, '') || '/') ? (
+                <nav className="flex-1 px-4 space-y-1 mt-4 overflow-y-auto min-h-0">
+                    {isPathActive(['/text-to-video', '/image-to-video', '/reference-images', '/first-last-frames', '/extend-video', '/gallery', '/video-stats']) ? (
                         <>
                             <NavItem to="/" icon={LayoutDashboard} label="Back to Dashboard" />
                             <div className="my-4 border-t border-slate-100 dark:border-slate-800" />
@@ -72,10 +82,27 @@ const Layout = ({ children }) => {
                             <NavItem to="/gallery" icon={Grid} label="Gallery" />
                             <NavItem to="/video-stats" icon={Activity} label="Analytics" />
                         </>
+                    ) : isPathActive(['/image-generation', '/image-gallery', '/image-stats']) ? (
+                        <>
+                            <NavItem to="/" icon={LayoutDashboard} label="Back to Dashboard" />
+                            <div className="my-4 border-t border-slate-100 dark:border-slate-800" />
+                            <div className="px-4 text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                                Image Tools
+                            </div>
+                            <NavItem to="/image-generation/generate" icon={Image} label="Generate Image" />
+                            <NavItem to="/image-generation/edit" icon={Wand2} label="Edit Image" />
+                            <NavItem to="/image-generation/tryon" icon={Shirt} label="Virtual Try-On" />
+                            <NavItem to="/image-generation/ads" icon={Megaphone} label="Create Ads" />
+                            <NavItem to="/image-generation/merge" icon={Layers} label="Merge Images" />
+                            <NavItem to="/image-generation/scenes" icon={Clapperboard} label="Generate Scenes" />
+                            <NavItem to="/image-generation/restore" icon={History} label="Restore Image" />
+                            <div className="my-4 border-t border-slate-100 dark:border-slate-800" />
+                            <NavItem to="/image-gallery" icon={Grid} label="Gallery" />
+                            <NavItem to="/image-stats" icon={Activity} label="Analytics" />
+                        </>
                     ) : (
                         <>
                             <NavItem to="/" icon={LayoutDashboard} label="Dashboard" />
-                            {/* We can add other module specific navs here later */}
                         </>
                     )}
                 </nav>

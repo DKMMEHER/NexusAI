@@ -258,7 +258,12 @@ def status(operation_name: str):
         return {"ok": True, **get_operation_status(operation_name)}
     except Exception as e:
         logger.exception("Status check failed")
+        logger.exception("Status check failed")
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/status")
+def health_check_status():
+    return {"status": "Video Generation Service Running"}
 
 @app.get("/download/{operation_name:path}")
 def download(operation_name: str):

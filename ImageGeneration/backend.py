@@ -17,7 +17,12 @@ except ImportError:
     from prompts import PROMPTS
 
 # === FastAPI Router for Nano Banana ===
+# === FastAPI Router for Nano Banana ===
 router = APIRouter()
+
+@router.get("/")
+def health_check():
+    return {"status": "Image Generation Service Running"}
 
 # Base URL pattern - will be formatted with model name
 API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
@@ -74,7 +79,7 @@ def call_nano_banana(api_key: str, prompt: str, images: List[dict] = None, model
     while attempt <= retries:
         # Log the request for debugging
         print(f"DEBUG: Sending request to: {url}", flush=True)
-        print(f"DEBUG: Payload: {payload}", flush=True)
+        # print(f"DEBUG: Payload: {payload}", flush=True)
         
         res = requests.post(f"{url}?key={api_key}", json=payload, headers={"Content-Type": "application/json"})
         if res.status_code == 429:
@@ -278,3 +283,29 @@ def restore_old_image(api_key: str = Form(None), file: UploadFile = File(...), p
     if img_b64:
         return JSONResponse({"image": img_b64, "mime": out_mime})
     return JSONResponse({"detail": error}, status_code=status)
+
+# === FastAPI App Setup ===
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+app = FastAPI(title="Image Generation Backend")
+
+# CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Include the router with prefix /image to match frontend proxy
+app.include_router(router, prefix="/image")
+
+@app.get("/")
+def health_check():
+    return {"status": "Image Generation Service Running"}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

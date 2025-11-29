@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Video, Image, FileText, ArrowRight } from 'lucide-react';
+import { Video, Image, FileText, ArrowRight, Youtube, MessageSquare } from 'lucide-react';
 
 const FeatureCard = ({ title, description, icon: Icon, to, active = false, color }) => {
     const CardContent = () => (
@@ -77,12 +77,30 @@ export default function Dashboard() {
                 />
 
                 <FeatureCard
-                    title="PDF Summarization"
-                    description="Extract insights and summaries from long PDF documents instantly."
+                    title="Documents Summarization"
+                    description="Extract insights and summaries from PDFs, Docs, Slides, and more."
                     icon={FileText}
-                    to="/pdf-summarization"
+                    to="/documents-summarization"
                     active={true}
                     color="bg-green-500"
+                />
+
+                <FeatureCard
+                    title="YouTube Transcript"
+                    description="Get transcripts and summaries from YouTube videos instantly."
+                    icon={Youtube}
+                    to="/youtube-transcript"
+                    active={true}
+                    color="bg-red-500"
+                />
+
+                <FeatureCard
+                    title="Chat & Q&A"
+                    description="Have continuous conversations and ask questions to the AI Assistant."
+                    icon={MessageSquare}
+                    to="/chat"
+                    active={true}
+                    color="bg-indigo-500"
                 />
             </div>
         </div>

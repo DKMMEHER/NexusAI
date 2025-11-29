@@ -9,10 +9,15 @@ import FirstLastFrames from './pages/FirstLastFrames';
 import ExtendVideo from './pages/ExtendVideo';
 import Gallery from './pages/Gallery';
 import ImageGeneration from './pages/ImageGeneration';
-import PDFSummarization from './pages/PDFSummarization';
 import VideoStats from './pages/VideoStats';
 import ImageGallery from './pages/ImageGallery';
 import ImageStats from './pages/ImageStats';
+import DocumentsSummarization from './pages/DocumentsSummarization';
+import YoutubeTranscript from './pages/YoutubeTranscript';
+import Chat from './pages/Chat';
+import ChatStats from './pages/ChatStats';
+import YoutubeStats from './pages/YoutubeStats';
+import DocumentsStats from './pages/DocumentsStats';
 import { JobsProvider } from './contexts/JobsContext';
 import { Toaster } from 'sonner';
 
@@ -37,7 +42,12 @@ function App() {
               <Route path="/image-generation/:mode" element={<ImageGeneration />} />
               <Route path="/image-gallery" element={<ImageGallery />} />
               <Route path="/image-stats" element={<ImageStats />} />
-              <Route path="/pdf-summarization" element={<PDFSummarization />} />
+              <Route path="/documents-summarization" element={<DocumentsSummarization />} />
+              <Route path="/youtube-transcript" element={<YoutubeTranscript />} />
+              <Route path="/chat" element={<Chat />} />
+              <Route path="/chat-stats" element={<ChatStats />} />
+              <Route path="/youtube-stats" element={<YoutubeStats />} />
+              <Route path="/documents-stats" element={<DocumentsStats />} />
             </Routes>
           </Layout>
           <Toaster position="top-right" theme="system" richColors />

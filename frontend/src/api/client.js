@@ -7,23 +7,47 @@ const client = axios.create({
     },
 });
 
+const handleResponse = (response) => response.data;
+
 export const api = {
-    textToVideo: (formData) => client.post('/text_to_video', formData),
-    imageToVideo: (formData) => client.post('/image_to_video', formData),
-    referenceImages: (formData) => client.post('/video_from_reference_images', formData),
-    firstLastFrames: (formData) => client.post('/video_from_first_last_frames', formData),
-    extendVideo: (formData) => client.post('/extend_veo_video', formData),
-    getStatus: (operationName) => client.get(`/status/${operationName}`),
-    getJobStatus: (operationName) => client.get(`/status/${operationName}`), // Added getJobStatus
-    // Helper to construct download URL
+    // Video Generation
+    textToVideo: (formData) => client.post('/text_to_video', formData).then(handleResponse),
+    imageToVideo: (formData) => client.post('/image_to_video', formData).then(handleResponse),
+    referenceImages: (formData) => client.post('/video_from_reference_images', formData).then(handleResponse),
+    firstLastFrames: (formData) => client.post('/video_from_first_last_frames', formData).then(handleResponse),
+    extendVideo: (formData) => client.post('/extend_veo_video', formData).then(handleResponse),
+    getStatus: (operationName) => client.get(`/status/${operationName}`).then(handleResponse),
+    getJobStatus: (operationName) => client.get(`/status/${operationName}`).then(handleResponse),
     getDownloadUrl: (operationName) => `/download/${operationName}`,
 
     // Image Generation
-    generateImage: (formData) => client.post('/image/generate', formData),
-    editImage: (formData) => client.post('/image/edit', formData),
-    virtualTryOn: (formData) => client.post('/image/virtual_try_on', formData),
-    createAds: (formData) => client.post('/image/create_ads', formData),
-    mergeImages: (formData) => client.post('/image/merge_images', formData),
-    generateScenes: (formData) => client.post('/image/generate_scenes', formData),
-    restoreImage: (formData) => client.post('/image/restore_old_image', formData),
+    generateImage: (formData) => client.post('/image/generate', formData).then(handleResponse),
+    editImage: (formData) => client.post('/image/edit', formData).then(handleResponse),
+    virtualTryOn: (formData) => client.post('/image/virtual_try_on', formData).then(handleResponse),
+    createAds: (formData) => client.post('/image/create_ads', formData).then(handleResponse),
+    mergeImages: (formData) => client.post('/image/merge_images', formData).then(handleResponse),
+    generateScenes: (formData) => client.post('/image/generate_scenes', formData).then(handleResponse),
+    restoreImage: (formData) => client.post('/image/restore_old_image', formData).then(handleResponse),
+
+    // Document Summarization
+    documents: {
+        summarize: (formData) => client.post('/summarize', formData).then(handleResponse),
+        getAnalytics: () => client.get('/api/documents/analytics').then(handleResponse),
+    },
+
+    // YouTube Transcript
+    youtube: {
+        getTranscript: (formData) => client.post('/transcript', formData).then(handleResponse),
+        getAnalytics: () => client.get('/api/youtube/analytics').then(handleResponse),
+    },
+
+    // Chat
+    chat: (formData) => client.post('/chat', formData).then(handleResponse),
+
+    // Health Checks
+    checkImageHealth: () => client.get('/image/').then(() => true).catch(() => false),
+    checkVideoHealth: () => client.get('/status/').then(() => true).catch(() => false),
+    checkDocsHealth: () => client.get('/summarize/').then(() => true).catch(() => false),
+    checkYoutubeHealth: () => client.get('/transcript/').then(() => true).catch(() => false),
+    checkChatHealth: () => client.get('/chat/').then(() => true).catch(() => false),
 };

@@ -254,10 +254,13 @@ async def async_operations(operation_name: str = Form(...)):
 # ----------------------------------------------------------------------
 @app.get("/status/{operation_name:path}")
 def status(operation_name: str):
+    # Fix for /status/ matching this route with empty operation_name
+    if not operation_name or operation_name.strip() == "" or operation_name == "/":
+         return health_check_status()
+
     try:
         return {"ok": True, **get_operation_status(operation_name)}
     except Exception as e:
-        logger.exception("Status check failed")
         logger.exception("Status check failed")
         raise HTTPException(status_code=500, detail=str(e))
 

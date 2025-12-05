@@ -50,4 +50,15 @@ export const api = {
     checkDocsHealth: () => client.get('/summarize/').then(() => true).catch(() => false),
     checkYoutubeHealth: () => client.get('/transcript/').then(() => true).catch(() => false),
     checkChatHealth: () => client.get('/chat/').then(() => true).catch(() => false),
+
+    // Director
+    director: {
+        createMovie: (data) => client.post('/director/create_movie', data, {
+            headers: { 'Content-Type': 'application/json' }
+        }).then(handleResponse),
+        getMovieStatus: (jobId) => client.get(`/director/movie_status/${jobId}`).then(handleResponse),
+        approveScript: (jobId, scenes) => client.post(`/director/approve_script/${jobId}`, { scenes }, {
+            headers: { 'Content-Type': 'application/json' }
+        }).then(handleResponse),
+    },
 };

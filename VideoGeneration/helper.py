@@ -1170,12 +1170,16 @@ def download_video_bytes(operation_name: str) -> Tuple[Optional[bytes], Optional
         return None, None
 
     video_obj = videos[0]
+    logger.info(f"download_video_bytes: found video_obj.video type: {type(video_obj.video)}")
     try:
         downloaded = client.files.download(file=video_obj.video)
     except Exception as e1:
         logger.warning(f"download_video_bytes: first download attempt failed: {e1}")
         try:
-            downloaded = client.files.download(video_obj.video)
+            # Try passing the name if it's an object
+            file_name = getattr(video_obj.video, "name", video_obj.video)
+            logger.info(f"download_video_bytes: trying download with name: {file_name}")
+            downloaded = client.files.download(name=file_name)
         except Exception as e2:
             logger.error(f"download_video_bytes: second download attempt failed: {e2}")
             return None, None

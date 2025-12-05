@@ -18,6 +18,7 @@ import Chat from './pages/Chat';
 import ChatStats from './pages/ChatStats';
 import YoutubeStats from './pages/YoutubeStats';
 import DocumentsStats from './pages/DocumentsStats';
+import Director from './pages/Director';
 import { JobsProvider } from './contexts/JobsContext';
 import { Toaster } from 'sonner';
 
@@ -45,6 +46,9 @@ function App() {
               <Route path="/documents-summarization" element={<DocumentsSummarization />} />
               <Route path="/youtube-transcript" element={<YoutubeTranscript />} />
               <Route path="/chat" element={<Chat />} />
+              <Route path="/director" element={<Director />} />
+
+              {/* Analytics Routes */}
               <Route path="/chat-stats" element={<ChatStats />} />
               <Route path="/youtube-stats" element={<YoutubeStats />} />
               <Route path="/documents-stats" element={<DocumentsStats />} />

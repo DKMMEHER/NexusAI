@@ -20,3 +20,6 @@ Dependencies/*.exe
 # Project-specific ignores
 Backup/
 Pipeline.txt
+
+Generated_Video/
+jobs.json

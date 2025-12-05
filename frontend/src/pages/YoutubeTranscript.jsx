@@ -37,7 +37,8 @@ const YoutubeTranscript = () => {
 
     const models = [
         { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', desc: 'Fast & Cost-Effective', badge: 'Flash' },
-        { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', desc: 'High Quality & Reasoning', badge: 'Pro' }
+        { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', desc: 'High Quality & Reasoning', badge: 'Pro' },
+        { id: 'gemini-3-pro-preview', name: 'Gemini 3.0 Pro Preview', desc: 'Next Gen Reasoning', badge: 'Preview' }
     ];
 
     return (

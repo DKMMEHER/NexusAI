@@ -4,7 +4,7 @@ import { Video, Image, Layers, Film, FastForward, Activity, Sun, Moon, Grid, Lay
 import clsx from 'clsx';
 import { api } from '../api/client';
 
-const NavItem = ({ to, icon: Icon, label }) => {
+const NavItem = ({ to, icon: Icon, label, highlight }) => {
     const location = useLocation();
     const isActive = location.pathname === to;
 
@@ -15,10 +15,12 @@ const NavItem = ({ to, icon: Icon, label }) => {
                 "flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group",
                 isActive
                     ? "bg-primary/10 text-primary font-medium"
-                    : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+                    : highlight
+                        ? "text-purple-600 bg-purple-50 hover:bg-purple-100 font-medium"
+                        : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
             )}
         >
-            <Icon size={20} className={clsx(isActive ? "text-primary" : "text-slate-400 group-hover:text-slate-600")} />
+            <Icon size={20} className={clsx(isActive ? "text-primary" : highlight ? "text-purple-600" : "text-slate-400 group-hover:text-slate-600")} />
             <span>{label}</span>
         </Link>
     );
@@ -113,6 +115,7 @@ const Layout = ({ children }) => {
                     {isPathActive(['/text-to-video', '/image-to-video', '/reference-images', '/first-last-frames', '/extend-video', '/gallery', '/video-stats']) ? (
                         <>
                             <NavItem to="/" icon={LayoutDashboard} label="Back to Dashboard" />
+                            <NavItem to="/director" icon={Clapperboard} label="The Director" />
                             <div className="my-4 border-t border-slate-100 dark:border-slate-800" />
                             <div className="px-4 text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
                                 Video Tools
@@ -128,6 +131,7 @@ const Layout = ({ children }) => {
                     ) : isPathActive(['/image-generation', '/image-gallery', '/image-stats']) ? (
                         <>
                             <NavItem to="/" icon={LayoutDashboard} label="Back to Dashboard" />
+                            <NavItem to="/director" icon={Clapperboard} label="The Director" />
                             <div className="my-4 border-t border-slate-100 dark:border-slate-800" />
                             <div className="px-4 text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
                                 Image Tools
@@ -146,6 +150,7 @@ const Layout = ({ children }) => {
                     ) : isPathActive(['/documents-summarization', '/documents-stats']) ? (
                         <>
                             <NavItem to="/" icon={LayoutDashboard} label="Back to Dashboard" />
+                            <NavItem to="/director" icon={Clapperboard} label="The Director" />
                             <div className="my-4 border-t border-slate-100 dark:border-slate-800" />
                             <div className="px-4 text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
                                 Document Tools
@@ -156,6 +161,7 @@ const Layout = ({ children }) => {
                     ) : isPathActive(['/youtube-transcript', '/youtube-stats']) ? (
                         <>
                             <NavItem to="/" icon={LayoutDashboard} label="Back to Dashboard" />
+                            <NavItem to="/director" icon={Clapperboard} label="The Director" />
                             <div className="my-4 border-t border-slate-100 dark:border-slate-800" />
                             <div className="px-4 text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
                                 YouTube Tools
@@ -166,6 +172,7 @@ const Layout = ({ children }) => {
                     ) : isPathActive(['/chat', '/chat-stats']) ? (
                         <>
                             <NavItem to="/" icon={LayoutDashboard} label="Back to Dashboard" />
+                            <NavItem to="/director" icon={Clapperboard} label="The Director" />
                             <div className="my-4 border-t border-slate-100 dark:border-slate-800" />
                             <div className="px-4 text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
                                 Chat Tools
@@ -176,6 +183,7 @@ const Layout = ({ children }) => {
                     ) : (
                         <>
                             <NavItem to="/" icon={LayoutDashboard} label="Dashboard" />
+                            <NavItem to="/director" icon={Clapperboard} label="The Director" />
                             <div className="my-4 border-t border-slate-100 dark:border-slate-800" />
                             <div className="px-4 text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
                                 Apps

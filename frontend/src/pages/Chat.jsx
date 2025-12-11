@@ -84,7 +84,7 @@ const Chat = () => {
 
     const models = [
         { id: "gemini-2.0-flash-exp", name: "Gemini 2.0 Flash", badge: "Experimental" },
-        { id: "gemini-2.0-flash-thinking-exp-1219", name: "Gemini 2.0 Flash Thinking", badge: "Reasoning" },
+        { id: "gemini-2.0-flash-thinking-exp", name: "Gemini 2.0 Flash Thinking", badge: "Reasoning" },
         { id: "gemini-3-pro-preview", name: "Gemini 3 Pro", badge: "Preview" },
     ];
 
@@ -128,8 +128,8 @@ const Chat = () => {
                                                 setShowModelDropdown(false);
                                             }}
                                             className={`w-full flex items-center justify-between px-2 py-2 rounded-lg text-sm transition-colors ${selectedModel === model.id
-                                                    ? 'bg-primary/10 text-primary'
-                                                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
+                                                ? 'bg-primary/10 text-primary'
+                                                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
                                                 }`}
                                         >
                                             <div className="flex flex-col items-start gap-0.5">
@@ -183,8 +183,8 @@ const Chat = () => {
                                 <button
                                     onClick={() => setEnableSearch(!enableSearch)}
                                     className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors border ${enableSearch
-                                            ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300'
-                                            : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-slate-300'
+                                        ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300'
+                                        : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-slate-300'
                                         }`}
                                 >
                                     <div className={`w-6 h-6 rounded flex items-center justify-center ${enableSearch ? 'bg-blue-100 dark:bg-blue-800' : 'bg-slate-100 dark:bg-slate-700'}`}>
@@ -197,8 +197,8 @@ const Chat = () => {
                                 <button
                                     onClick={() => setEnableCode(!enableCode)}
                                     className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors border ${enableCode
-                                            ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300'
-                                            : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-slate-300'
+                                        ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300'
+                                        : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-slate-300'
                                         }`}
                                 >
                                     <div className={`w-6 h-6 rounded flex items-center justify-center ${enableCode ? 'bg-emerald-100 dark:bg-emerald-800' : 'bg-slate-100 dark:bg-slate-700'}`}>
@@ -235,8 +235,8 @@ const Chat = () => {
                             )}
                             <div
                                 className={`max-w-[80%] rounded-2xl px-4 py-3 ${msg.role === 'user'
-                                        ? 'bg-primary text-white rounded-tr-none'
-                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-tl-none'
+                                    ? 'bg-primary text-white rounded-tr-none'
+                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-tl-none'
                                     }`}
                             >
                                 <p className="whitespace-pre-wrap text-sm leading-relaxed">{msg.content}</p>

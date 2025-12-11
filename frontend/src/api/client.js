@@ -45,11 +45,11 @@ export const api = {
     chat: (formData) => client.post('/chat', formData).then(handleResponse),
 
     // Health Checks
-    checkImageHealth: () => client.get('/image/').then(() => true).catch(() => false),
-    checkVideoHealth: () => client.get('/status/').then(() => true).catch(() => false),
-    checkDocsHealth: () => client.get('/summarize/').then(() => true).catch(() => false),
-    checkYoutubeHealth: () => client.get('/transcript/').then(() => true).catch(() => false),
-    checkChatHealth: () => client.get('/chat/').then(() => true).catch(() => false),
+    checkImageHealth: () => client.get('/health/image').then(() => true).catch(() => false),
+    checkVideoHealth: () => client.get('/health/video').then(() => true).catch(() => false),
+    checkDocsHealth: () => client.get('/health/docs').then(() => true).catch(() => false),
+    checkYoutubeHealth: () => client.get('/health/youtube').then(() => true).catch(() => false),
+    checkChatHealth: () => client.get('/health/chat').then(() => true).catch(() => false),
 
     // Director
     director: {

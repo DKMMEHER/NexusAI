@@ -1,210 +1,113 @@
-🚀 Veo Video Generation Suite
-Text → Video • Image → Video • Reference Images • First + Last Frames • Extend Video
+# NexusAI
 
-This project is a full-featured AI Video Generation Suite built using:
+**NexusAI** is a comprehensive Generative AI suite that integrates multiple AI modalities into a single, unified local dashboard. Built with **React**, **FastAPI**, and powered by **Google Gemini & Veo**, it allows users to generate images, videos, movies, transcripts, and more.
 
-Streamlit (Frontend)
+## 🚀 Features
 
-FastAPI (Backend)
+### 1. 🎬 The Director (Movie Maker)
+*   **End-to-End Movie Generation**: Create short films from a simple text prompt.
+*   **Auto-Scripting**: Uses Gemini to write screenplays with scenes, visual descriptions, and narration.
+*   **AI Cinematography**: Controls camera angles, lighting, and movement.
+*   **Video Generation**: Powered by **Google Veo 3.1** (Preview).
+*   **Voiceover**: Validates language support (e.g., Hindi, English) for narration.
+*   **Structure**: Database-backed job management with auto-save.
 
-Google Veo 3.1 / 3.1-Fast APIs
+### 2. 📹 Video Generation
+*   **Text-to-Video**: Generate high-quality 720p videos.
+*   **Image-to-Video**: Animate static images.
+*   **Video Extension**: Extend existing clips seamlessly.
+*   **Backend**: Google Veo 3.1 integration.
 
-FFmpeg (Video processing)
+### 3. 🎨 Image Generation
+*   **Text-to-Image**: Generate high-fidelity images using Google's Imagen 3.
+*   **Advanced Settings**: Aspect ratio, style controls (Cinematic, Photorealistic, etc.).
 
-It supports five advanced video-generation workflows with a clean UI and cloud-ready backend.
+### 4. 📄 Document Summarization
+*   **Upload & Summarize**: Process PDF/Text documents and extract key insights using Gemini 1.5 Pro.
 
-✨ Features
-🎬 1. Text → Video
+### 5. 📺 YouTube Transcript & Chat
+*   **Video Analysis**: Extract transcripts from YouTube videos.
+*   **Q&A**: Chat with the video content to ask specific questions.
 
-Generate cinematic videos from plain text prompts.
-
-🖼️ 2. Image → Video
-
-Upload an image → Animate it into a realistic AI-generated video.
-
-🧩 3. Multiple Reference Images
-
-Use 2–6 reference images to generate consistent characters across the video.
-
-📘 4. First + Last Frame → Video
-
-Provide starting & ending frames → system generates smooth in-between motion.
-
-➕ 5. Extend an Existing Video
-
-Upload any Veo-generated clip → extend it forward with visual consistency.
-
-🧱 Tech Stack
-Layer	Technologies
-Frontend	Streamlit, Plotly, Python
-Backend	FastAPI, Pydantic
-AI Models	Google Veo 3.1, Veo 3.1-Fast
-Video Tools	FFmpeg
-Environment	Python 3.10+
-
-
-
-Access_to_Veo3/
-│── app.py                 # Streamlit UI
-│── backend.py             # FastAPI backend
-│── helper.py              # Video utilities, FFmpeg helpers
-│── requirements.txt
-│── .gitignore
-│── Dependencies/          # FFmpeg, binaries
-
-
-
-
-# 🍌 Nano Banana Studio
-
-FastAPI + Streamlit playground for experimenting with Google's Gemini image generation & editing ("nano banana") capabilities. Provides a simple creative studio UI plus a clean backend with multiple image workflows: generation, editing, virtual try-on, ad variants, image merging, scene extension, and restoration.
-
-## Features
-- Text-to-image generation
-- Prompt-based image editing
-- Virtual try-on (product + person composite)
-- Multi-variation ad creative generator
-- Merge up to 5 images with prompt guidance
-- Scene extension / reinterpretation variants (capped at 3)
-- Old photo restoration
-- Simple randomized system prompts for diversity
-
-## Tech Stack
-- Python 3.11+
-- FastAPI backend (`backend.py`)
-- Streamlit frontend (`frontend.py`)
-- `uv` for dependency + runtime management
-- Uvicorn ASGI server
-
-## Prerequisites
-- Python 3.11 installed
-- `uv` installed (https://github.com/astral-sh/uv)
-- A valid Gemini API key (set in the UI each session)
-
-Install `uv` if you don't have it:
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-```
-(On macOS with Homebrew you can also: `brew install uv`)
-
-## Quick Start
-Clone and sync dependencies:
-```bash
-git clone https://github.com/DKMMEHER/nano-banana-studio.git
-cd nano-banana-studio
-uv sync
-```
-
-Run the FastAPI backend:
-```bash
-uv run backend.py
-```
-This starts the API at: http://localhost:8000
-
-Run the Streamlit frontend (in a second terminal):
-```bash
-uv run streamlit run frontend.py
-```
-Open the printed local URL (usually http://localhost:8501) and paste your Gemini API key in the sidebar.
-
-## Environment Variables (Optional)
-| Variable | Purpose | Default |
-|----------|---------|---------|
-| `MAX_AD_VARIATIONS` | Upper bound for ad images (hard capped at 3 in code) | 3 |
-| `MAX_SCENE_VARIATIONS` | Currently not user-controlled (scenes forced to 3) | 3 |
-
-Export before running if you want to adjust:
-```bash
-export MAX_AD_VARIATIONS=3
-export MAX_SCENE_VARIATIONS=3
-```
-
-## API Overview
-All endpoints expect `api_key` form field carrying your Gemini key.
-
-### 1. Generate Image
-POST `/generate`
-Form fields: `api_key`, `prompt`
-Returns base64 image.
-
-Example:
-```bash
-curl -X POST http://localhost:8000/generate \
-  -F api_key="$GEMINI_KEY" \
-  -F prompt="A cinematic banana spaceship over neon city"
-```
-
-### 2. Edit Image
-POST `/edit`
-Form: `api_key`, `prompt` + file upload `file`
-```bash
-curl -X POST http://localhost:8000/edit \
-  -F api_key="$GEMINI_KEY" \
-  -F prompt="Make it watercolor" \
-  -F file=@input.png
-```
-
-### 3. Virtual Try-On
-POST `/virtual_try_on`
-Files: `product`, `person`
-Optional `prompt`.
-
-### 4. Create Ads (multi-variation)
-POST `/create_ads`
-Files: `model`, `product`
-Optional: `prompt`
-Returns JSON `{ results: [ { image, mime }, ... ] }` up to 3.
-
-### 5. Merge Images
-POST `/merge_images`
-Multiple files field name `files` (up to 5). Optional `prompt`.
-
-### 6. Generate Scenes
-POST `/generate_scenes`
-File: `scene` + optional `prompt`. Returns up to 3 variations.
-
-### 7. Restore Old Image
-POST `/restore_old_image`
-File: `file` + optional `prompt`.
-
-## Frontend Usage
-1. Start backend
-2. Start Streamlit app
-3. Enter backend URL (default http://localhost:8000)
-4. Paste API key
-5. Pick a mode and interact
-
-## Project Structure
-```
-backend.py      # FastAPI app & endpoints
-frontend.py     # Streamlit UI
-prompts.py      # System / mode prompt templates
-pyproject.toml  # Dependencies & metadata
-movie/          # Sample media asset (nano-banana.mp4)
-```
-
-## Development Notes
-- `prompts.py` contains prompt banks keyed by mode.
-- Some routes purposely randomize a system prompt for variety.
-- Scene + ad variants are clamped to prevent runaway usage.
-- Responses return base64 images directly (no temp files).
-
-## Troubleshooting
-| Issue | Fix |
-|-------|-----|
-| 401/403 or quota errors | Verify API key & usage limits |
-| Empty `results` array | Model returned no image; retry with different prompt |
-| Streamlit can't reach backend | Confirm backend running at 8000 & URL matches |
-| Slow responses | Model rate limiting -> automatic backoff applied |
-
-## Future Ideas
-- Local caching layer for identical prompts
-- Download button for each generated image
-- Async endpoint calls for parallel variants
-- Optional persistent key via env var
-
-## License
-MIT (add a LICENSE file if desired)
+### 6. 💬 AI Chat
+*   **General Purpose Assistant**: A clean chat interface for general queries and coding help.
 
 ---
-Happy creating! 🍌
+
+## 🛠️ Technology Stack
+
+*   **Frontend**: React (Vite), Tailwind CSS, Lucide React Icons.
+*   **Backend Microservices**: Python (FastAPI).
+    *   Separate services for each domain (Director, Video, Image, etc.) for modularity.
+*   **AI Models**:
+    *   **Text/Logic**: Gemini 1.5 Pro / Flash.
+    *   **Video**: Veo 3.1 (Preview).
+    *   **Image**: Imagen 3.
+*   **Infrastructure**:
+    *   **Docker & Docker Compose**: Unified containerization.
+    *   **Nginx**: Reverse proxy for routing requests to microservices.
+    *   **FFmpeg**: Video stitching and processing.
+
+---
+
+## 📦 Installation & Setup
+
+### Prerequisites
+*   **Docker Desktop** installed and running.
+*   **Google Cloud Project** with Vertex AI enabled OR **Google AI Studio API Key**.
+
+### 1. Clone the Repository
+```bash
+git clone https://github.com/yourusername/NexusAI.git
+cd NexusAI
+```
+
+### 2. Configure Environment
+Create a `.env` file in the root directory (or link an external one in `docker-compose.yml`):
+
+```env
+# Required for AI Features
+GEMINI_API_KEY=your_api_key_here
+
+# Optional: For Vertex AI usage (if not using API Key)
+GOOGLE_CLOUD_PROJECT=your_project_id
+GOOGLE_CLOUD_LOCATION=us-central1
+```
+
+### 3. Run with Docker
+Start the entire suite with a single command:
+
+```bash
+docker-compose up --build
+```
+
+Access the application at: **http://localhost:8080**
+
+### 4. Stop the Application
+```bash
+docker-compose down
+```
+
+---
+
+## 📂 Project Structure
+
+```
+NexusAI/
+├── Director/                 # Movie Maker Service
+├── VideoGeneration/          # Veo Integration Service
+├── ImageGeneration/          # Imagen Service
+├── DocumentsSummarization/   # Doc Analysis Service
+├── YoutubeTranscript/        # YouTube Tools
+├── Chat/                     # Chatbot Service
+├── frontend/                 # React Dashboard
+├── Generated_Video/          # Shared Volume for outputs
+├── Dockerfile                # Unified container definition
+├── docker-compose.yml        # Orchestration config
+├── nginx.conf                # Routing configuration
+└── start.sh                  # Container entrypoint
+```
+
+## 📜 License
+
+This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.

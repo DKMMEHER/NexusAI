@@ -52,8 +52,8 @@ const TextToVideo = () => {
 
             const response = await api.textToVideo(formData);
 
-            if (response.data.ok) {
-                updateJobStatus(newJob.id, 'processing', response.data);
+            if (response.ok) {
+                updateJobStatus(newJob.id, 'processing', response);
                 toast.success("Job started successfully!", { id: toastId });
                 setPrompt('');
             } else {

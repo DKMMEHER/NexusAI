@@ -11,9 +11,18 @@ from datetime import datetime
 from typing import List, Optional, Dict
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from fastapi.staticfiles import StaticFiles
 import google.generativeai as genai
 from dotenv import load_dotenv
+
+# Import extracted components
+from .models import (
+    MovieRequest, VisualDetails, CameraDirection, MotionAndActions, 
+    Music, Voiceover, AudioDesign, LanguagePreferences, Style, 
+    TechnicalPreferences, ScenePrompt, Scene, MovieJob, ApprovalRequest
+)
+from .storage import LocalStorage
+from .database import JsonDatabase
 
 # Load environment variables
 load_dotenv()
@@ -31,8 +40,9 @@ else:
 
 app = FastAPI(title="NexusAI Director Service")
 
-# CORS
-from fastapi.staticfiles import StaticFiles
+@app.get("/health")
+def health_check():
+    return {"status": "healthy"}
 
 # CORS
 app.add_middleware(
@@ -43,131 +53,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Serve Generated Videos
+# Initialize Providers
+# In a real cloud setup, we would choose providers based on env vars
+storage = LocalStorage()
+db = JsonDatabase()
+
+# Serve Generated Videos (LocalStorage specific)
+# We still need this for LocalStorage to work with the frontend
 os.makedirs("Generated_Video", exist_ok=True)
 app.mount("/videos", StaticFiles(directory="Generated_Video"), name="videos")
 
-# --- Data Models ---
-
-class MovieRequest(BaseModel):
-    topic: str
-    style: Optional[str] = "Cinematic"
-    duration_seconds: Optional[int] = 60
-    model: Optional[str] = "veo-3.1-fast-generate-preview"
-    resolution: Optional[str] = "1080p"
-    aspect_ratio: Optional[str] = "16:9"
-
-class VisualDetails(BaseModel):
-    environment: str
-    character: str
-    props: str
-
-class CameraDirection(BaseModel):
-    movement: str
-    framing: str
-    focus: str
-    lens: str
-
-class MotionAndActions(BaseModel):
-    character_action: str
-    environment_motion: str
-
-class Music(BaseModel):
-    enabled: bool
-    style: str
-    intensity: str
-
-class Voiceover(BaseModel):
-    enabled: bool
-    language: Optional[str] = ""
-    script: Optional[str] = ""
-    tone: Optional[str] = ""
-
-class AudioDesign(BaseModel):
-    music: Music
-    ambient_sfx: Dict[str, str]
-    voiceover: Voiceover
-
-class LanguagePreferences(BaseModel):
-    narration_language: str
-    subtitle_language: str
-    tone: str
-
-class Style(BaseModel):
-    cinematic_style: str
-    color_grade: str
-    quality: str
-
-class TechnicalPreferences(BaseModel):
-    frame_rate: str
-    resolution: str
-    stabilization: str
-
-
-class ScenePrompt(BaseModel):
-    scene_description: str
-    visual_details: VisualDetails
-    camera_direction: CameraDirection
-    motion_and_actions: MotionAndActions
-    audio_design: AudioDesign
-    language_preferences: LanguagePreferences
-    style: Style
-    technical_preferences: TechnicalPreferences
-    continuity_rules: Optional[List[str]] = []
-
-class Scene(BaseModel):
-    id: int
-    scene_heading: str
-    prompt: ScenePrompt
-    
-    # Computed/System fields
-    visual_prompt: str # Synthesized for Veo
-    duration: int # seconds
-    status: str = "pending" # pending, generating, done, failed
-    video_path: Optional[str] = None
-    is_extension: bool = False
-
-class MovieJob(BaseModel):
-    job_id: str
-    topic: str
-    status: str # starting, scripting, filming, stitching, completed, failed
-    progress: int # 0-100
-    scenes: List[Scene] = []
-    final_video_path: Optional[str] = None
-    error: Optional[str] = None
-    created_at: str
-    # Settings
-    model: str
-    resolution: str
-    aspect_ratio: str
-
-class ApprovalRequest(BaseModel):
-    scenes: Optional[List[Scene]] = None
-
-# --- In-Memory Storage ---
-jobs = {}
-JOBS_FILE = "jobs.json"
-
-def save_jobs():
-    try:
-        data = {jid: job.dict() for jid, job in jobs.items()}
-        with open(JOBS_FILE, "w") as f:
-            json.dump(data, f, default=str, indent=2)
-    except Exception as e:
-        logger.error(f"Failed to save jobs: {e}")
-
-def load_jobs():
-    global jobs
-    if os.path.exists(JOBS_FILE):
-        try:
-            with open(JOBS_FILE, "r") as f:
-                data = json.load(f)
-                jobs = {jid: MovieJob(**j_data) for jid, j_data in data.items()}
-            logger.info(f"Loaded {len(jobs)} jobs from {JOBS_FILE}")
-        except Exception as e:
-            logger.error(f"Failed to load jobs: {e}")
-
-load_jobs()
 
 # --- Core Logic ---
 
@@ -200,76 +95,87 @@ async def generate_script(job_id: str, topic: str, duration_seconds: int, resolu
         4.  **AUDIO**: Design a complete soundscape.
         5.  **VOICEOVER**: ALWAYS generate a compelling voiceover script relevant to the scene. Do not leave it blank.
         6.  **REASONING**: Before generating the JSON, think about the visual flow, color palette, and emotional arc.
+        7.  **SAFETY & COMPLIANCE**: DO NOT use real names of famous people or historical figures in 'visual_prompt', 'scene_description', or 'visual_details'.
+            The video generation model will BLOCK requests with real names.
+            INSTEAD, describe the person visually.
+            BAD: "Veer Surendra Sai walking..."
+            GOOD: "A tall, bearded Indian freedom fighter from the 19th century, wearing a turban and white dhoti, walking..."
+            (You MAY use the real name in the 'voiceover' script, just not in the visual directives).
+
+        8. **CONSISTENCY IS KING**: **CRITICAL**: The component 'visual_details.character' MUST BE IDENTICAL in every single scene. Do not change the age, clothes, or face of the main character between scenes.
+            *   *Strategy*: Write the character description ONCE mentally, and copy-paste it into every scene's JSON.
+        9. **LANGUAGE**: If the user asked for a specific language (e.g., Hindi), the 'audio_design.voiceover.script' MUST be in that language.
+            *   Example: If Hindi is requested -> `"script": "जीवन एक यात्रा है..."` (Use Devanagari or appropriate script).
 
         ### REQUIRED JSON STRUCTURE:
         For EACH scene, you must provide a JSON object with the following EXACT structure. 
-        Use this example as a template for the level of detail required:
-
+        
         [
             {{
                 "id": 1,
-                "scene_heading": "EXT. MOUNTAIN CLIFF - SUNSET",
+                "scene_heading": "EXT. LOCATION - TIME",
                 "prompt": {{
-                    "scene_description": "A cinematic, ultra-realistic sequence of a single adult male walking slowly toward a cliff edge at sunset; mood is inspirational and contemplative.",
+                    "scene_description": "Precise description of what happens.",
                     "visual_details": {{
-                        "environment": "Golden-hour sunset over layered mountains and deep valleys; soft atmospheric haze; natural rocky terrain.",
-                        "character": "Adult male (30-40), casual outdoor clothing (non-branded), neutral skin tone, natural gait; no facial closeups.",
-                        "props": "Rocks, grass, small wind-swept plants"
+                        "environment": "Detailed setting...",
+                        "character": "STRICTLY CONSISTENT: [Age, Gender, Clothing, defining features]. Must match Scene 1 exactly.",
+                        "props": "..."
                     }},
                     "camera_direction": {{
-                        "movement": "Slow forward dolly-in, steady and cinematic",
-                        "framing": "Medium-wide shot from behind showing subject and cliff",
-                        "focus": "Shallow depth of field; subject sharply in focus, background soft",
-                        "lens": "35mm cinematic lens look"
+                        "movement": "e.g. Dolly forward",
+                        "framing": "e.g. Medium Shot",
+                        "focus": "e.g. Rack focus to subject",
+                        "lens": "e.g. 35mm Anamorphic"
                     }},
                     "motion_and_actions": {{
-                        "character_action": "Walks slowly toward edge -> pauses -> turns head slightly and breathes in",
-                        "environment_motion": "Soft wind affecting grass and distant clouds moving subtly"
+                        "character_action": "Specific movement...",
+                        "environment_motion": "Wind, background chaos..."
                     }},
                     "audio_design": {{
-                        "music": {{
-                            "enabled": true,
-                            "style": "Emotional cinematic score with soft strings and ambient pads",
-                            "intensity": "low"
-                        }},
-                        "ambient_sfx": {{
-                            "wind": "Gentle mountain breeze",
-                            "environment": "Distant valley echo and natural ambience",
-                            "footsteps": "Light, realistic on rocky ground"
-                        }},
+                        "music": {{ "enabled": true, "style": "...", "intensity": "..." }},
+                        "ambient_sfx": {{ "wind": "...", "environment": "...", "footsteps": "..." }},
                         "voiceover": {{
                             "enabled": true,
-                            "language": "Hindi",
-                            "script": "Sometimes, silence speaks louder than words. In this vastness, I find myself.",
-                            "tone": "Deep, reflective, male voice with a poetic touch"
+                            "language": "{voiceover_language_placeholder}", 
+                            "script": "The actual spoken words in the target language.",
+                            "tone": "..."
                         }}
                     }},
                     "language_preferences": {{
-                        "narration_language": "English",
+                        "narration_language": "{voiceover_language_placeholder}",
                         "subtitle_language": "English",
-                        "tone": "Calm, inspirational"
+                        "tone": "..."
                     }},
                     "style": {{
-                        "cinematic_style": "Epic, atmospheric, realistic",
-                        "color_grade": "Warm golden-hour tones",
-                        "quality": "High detail, realistic lighting and skin tones"
+                        "cinematic_style": "...",
+                        "color_grade": "...",
+                        "quality": "..."
                     }},
                     "technical_preferences": {{
                         "frame_rate": "24fps",
                         "resolution": "{resolution}",
-                        "stabilization": "Very stable, no jitter"
+                        "stabilization": "High"
                     }},
                     "continuity_rules": [
-                        "Do not change the man's clothing or appearance during the shot.",
-                        "Maintain consistent golden-hour lighting throughout the clip."
+                        "Character appearance MUST match Scene 1.",
+                        "Lighting direction must remain consistent."
                     ]
                 }},
-                "visual_prompt": "JSON_STRING_HERE", 
+                "visual_prompt": "A text-to-video prompt string. Combine [visual_details.environment] + [visual_details.character] + [camera_direction] + [style]. NO REAL NAMES.", 
                 "duration": {scene_duration_placeholder}
             }},
             ...
         ]
         """
+        
+        # Inject explicit language instruction if detected in topic
+        voiceover_language_placeholder = "English"
+        if "hindi" in topic.lower():
+            voiceover_language_placeholder = "Hindi"
+        elif "spanish" in topic.lower():
+            voiceover_language_placeholder = "Spanish"
+        # Add more languages as needed
+
         
         safety_settings = [
             {
@@ -290,7 +196,7 @@ async def generate_script(job_id: str, topic: str, duration_seconds: int, resolu
             },
         ]
 
-        response = model.generate_content(prompt, request_options={"timeout": 600}, safety_settings=safety_settings)
+        response = await model.generate_content_async(prompt, request_options={"timeout": 600}, safety_settings=safety_settings)
         
         try:
             logger.info(f"[{job_id}] Response Candidates: {response.candidates}")
@@ -316,8 +222,6 @@ async def generate_script(job_id: str, topic: str, duration_seconds: int, resolu
         text = text.strip()
         
         # 3. If still not valid JSON (or no code blocks found), try to find the array boundaries
-        # This handles cases where there is conversational text but no code blocks, 
-        # or if the code block extraction left some whitespace/newlines.
         if not (text.startswith("[") and text.endswith("]")):
              start = text.find("[")
              end = text.rfind("]")
@@ -330,7 +234,6 @@ async def generate_script(job_id: str, topic: str, duration_seconds: int, resolu
         scenes = []
         for s in scenes_data:
             prompt_data = s.get('prompt', {})
-            # Use generated duration, defaulting to 8 if missing/invalid
             s_duration = s.get('duration', 8)
             
             scenes.append(Scene(
@@ -352,9 +255,11 @@ async def generate_script(job_id: str, topic: str, duration_seconds: int, resolu
                 status="pending"
             ))
             
-        jobs[job_id].scenes = scenes
-        save_jobs()
-        logger.info(f"[{job_id}] Generated {len(scenes)} scenes.")
+        job = db.get_job(job_id)
+        if job:
+            job.scenes = scenes
+            db.save_job(job)
+            logger.info(f"[{job_id}] Generated {len(scenes)} scenes.")
 
     except Exception as e:
         logger.error(f"[{job_id}] Script generation failed: {e}")
@@ -364,7 +269,11 @@ async def production_loop(job_id: str):
     """Orchestrates the video generation for each scene."""
     logger.info(f"[{job_id}] Starting production loop")
     
-    job = jobs[job_id]
+    job = db.get_job(job_id)
+    if not job:
+        logger.error(f"[{job_id}] Job not found in production loop")
+        return
+
     total_scenes = len(job.scenes)
     
     async with httpx.AsyncClient(timeout=300) as client:
@@ -372,13 +281,13 @@ async def production_loop(job_id: str):
         
         for i, scene in enumerate(job.scenes):
             if scene.status == "done":
+                # Assuming linear flow continuation
                 continue
                 
             logger.info(f"[{job_id}] Generating Scene {scene.id}/{total_scenes}: {scene.visual_prompt[:50]}...")
             scene.status = "generating"
-            save_jobs()
+            db.save_job(job)
             
-            # Retry logic disabled to prevent quota exhaustion
             max_retries = 0
             retry_delay = 0
             
@@ -393,12 +302,10 @@ async def production_loop(job_id: str):
                         "aspect_ratio": job.aspect_ratio
                     }
                     
-                    # Add delay between scenes to avoid rate limits
                     if i > 0 and attempt == 0:
                         logger.info(f"[{job_id}] Waiting 40s before next scene to respect rate limits...")
                         await asyncio.sleep(40)
 
-                    # Determine endpoint: Extend if we have a previous operation, else Text-to-Video
                     if previous_operation_name:
                         logger.info(f"[{job_id}] Extending from previous operation: {previous_operation_name}")
                         payload["previous_operation_name"] = previous_operation_name
@@ -420,46 +327,44 @@ async def production_loop(job_id: str):
                     # 2. Poll for Status
                     poll_start_time = time.time()
                     while True:
-                        await asyncio.sleep(5) # Poll every 5 seconds
+                        await asyncio.sleep(5)
                         
-                        # Timeout check (15 minutes)
                         if time.time() - poll_start_time > 900:
                             raise Exception("Video generation timed out after 15 minutes.")
 
                         status_res = await client.get(f"http://127.0.0.1:8002/status/{operation_name}")
                         status_data = status_res.json()
-                        
                         state = status_data.get("state")
                         
-                        # Log status every 60 seconds
                         if int(time.time() - poll_start_time) % 60 == 0:
                              logger.info(f"[{job_id}] Polling status for {operation_name}: {state}")
 
-                        # Check for both 'succeeded' (Veo) and 'COMPLETE' (Helper)
                         if state == "succeeded" or status_data.get("status") == "COMPLETE":
                             break
                         elif state == "failed" or status_data.get("status") == "ERROR":
                             raise Exception(f"Video generation failed: {status_data.get('error') or status_data.get('message')}")
                     
-                    # 3. Save Local
+                    # 3. Save Local & Finalize via Provider
                     save_res = await client.get(f"http://127.0.0.1:8002/save_local/{operation_name}")
                     if save_res.status_code != 200:
                          raise Exception(f"Save local failed: {save_res.text}")
                          
                     save_data = save_res.json()
-                    video_path = save_data.get("file_path")
+                    source_video_path = save_data.get("file_path")
                     
-                    scene.video_path = video_path
+                    safe_op_name = operation_name.replace("/", "_")
+                    filename = f"scene_{job_id}_{scene.id}_{safe_op_name}.mp4"
+                    final_path = storage.save_video(source_video_path, filename)
+                    
+                    scene.video_path = final_path
                     scene.status = "done"
                     
-                    # Update previous_operation_name for the next scene in the chain
                     previous_operation_name = operation_name
-                    logger.info(f"[{job_id}] Scene {scene.id} completed. Operation: {operation_name}. Path: {video_path}")
+                    logger.info(f"[{job_id}] Scene {scene.id} completed. Path: {final_path}")
                     
-                    # Update Job Progress
-                    job.progress = int(10 + ((i + 1) / total_scenes) * 80) # Scripting is 0-10, Filming 10-90
-                    save_jobs()
-                    break # Success, exit retry loop
+                    job.progress = int(10 + ((i + 1) / total_scenes) * 80)
+                    db.save_job(job)
+                    break 
                     
                 except Exception as e:
                     logger.error(f"[{job_id}] Scene {scene.id} failed (Attempt {attempt+1}/{max_retries+1}): {e}")
@@ -469,8 +374,7 @@ async def production_loop(job_id: str):
                         await asyncio.sleep(wait_time)
                     else:
                         scene.status = "failed"
-                        save_jobs()
-                        # Continue to next scene even if this one fails permanently
+                        db.save_job(job)
                         continue
 
         # All scenes processed
@@ -478,55 +382,56 @@ async def production_loop(job_id: str):
         
         job.status = "completed"
         job.progress = 100
-        save_jobs()
+        db.save_job(job)
         logger.info(f"[{job_id}] Job completed successfully.")
 
 async def stitch_movie(job_id: str):
     """Combines all clips into the final movie."""
     logger.info(f"[{job_id}] Stitching movie")
     
-    job = jobs[job_id]
+    job = db.get_job(job_id)
+    if not job:
+        return
+
     valid_scenes = [s for s in job.scenes if s.status == "done" and s.video_path]
     
     if not valid_scenes:
         logger.error(f"[{job_id}] No valid scenes to stitch.")
         return
 
-    # Create file list for FFmpeg
-    # Logic: If a scene is an extension, it contains the content of the previous scene(s).
-    # So we should NOT include the previous scene in the stitch list if the current one extends it.
-    
     final_scenes_to_stitch = []
     for s in valid_scenes:
         if s.is_extension and final_scenes_to_stitch:
-            # Remove the previous scene because 's' already contains it
             final_scenes_to_stitch.pop()
         final_scenes_to_stitch.append(s)
         
     list_path = f"temp_list_{job_id}.txt"
     with open(list_path, "w") as f:
         for scene in final_scenes_to_stitch:
-            # Escape paths for FFmpeg
             safe_path = scene.video_path.replace("\\", "/")
             f.write(f"file '{safe_path}'\n")
     
     output_filename = f"Movie_{job.topic.replace(' ', '_')[:30]}_{job_id}.mp4"
-    output_path = os.path.join(os.getcwd(), "Generated_Video", output_filename)
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    temp_output_path = os.path.join(os.getcwd(), f"temp_{output_filename}")
     
     try:
-        # Run FFmpeg
         cmd = [
             "ffmpeg", "-f", "concat", "-safe", "0", "-i", list_path,
-            "-c", "copy", "-y", output_path
+            "-c", "copy", "-y", temp_output_path
         ]
         
         logger.info(f"[{job_id}] Running FFmpeg: {' '.join(cmd)}")
         subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         
-        job.final_video_path = output_path
-        save_jobs()
-        logger.info(f"[{job_id}] Stitching complete: {output_path}")
+        final_key = storage.save_video(temp_output_path, output_filename)
+        
+        if os.path.exists(temp_output_path):
+            os.remove(temp_output_path)
+
+        job.final_video_path = output_filename 
+        db.save_job(job)
+        
+        logger.info(f"[{job_id}] Stitching complete: {final_key}")
         
     except subprocess.CalledProcessError as e:
         logger.error(f"[{job_id}] FFmpeg failed: {e.stderr.decode()}")
@@ -537,25 +442,28 @@ async def stitch_movie(job_id: str):
             os.remove(list_path)
 
 async def generate_script_task(job_id: str, request: MovieRequest):
-    job = jobs[job_id]
+    job = db.get_job(job_id)
+    if not job: 
+        return
+        
     try:
         # 1. Scripting
         job.status = "scripting"
         job.progress = 5
-        save_jobs()
+        db.save_job(job)
         await generate_script(job_id, request.topic, request.duration_seconds, request.resolution)
         
         # Pause for approval
         job.status = "waiting_for_approval"
         job.progress = 10
-        save_jobs()
+        db.save_job(job)
         logger.info(f"[{job_id}] Script generated. Waiting for approval.")
         
     except Exception as e:
         logger.error(f"[{job_id}] Script generation failed: {e}")
         job.status = "failed"
         job.error = str(e)
-        save_jobs()
+        db.save_job(job)
 
 # --- Endpoints ---
 
@@ -572,8 +480,7 @@ async def create_movie(request: MovieRequest, background_tasks: BackgroundTasks)
         resolution=request.resolution,
         aspect_ratio=request.aspect_ratio
     )
-    jobs[job_id] = new_job
-    save_jobs()
+    db.save_job(new_job)
     
     # Start script generation only
     background_tasks.add_task(generate_script_task, job_id, request)
@@ -582,19 +489,16 @@ async def create_movie(request: MovieRequest, background_tasks: BackgroundTasks)
 
 @app.post("/approve_script/{job_id}")
 async def approve_script(job_id: str, request: ApprovalRequest, background_tasks: BackgroundTasks):
-    if job_id not in jobs:
+    job = db.get_job(job_id)
+    if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     
-    job = jobs[job_id]
     if job.status != "waiting_for_approval":
         raise HTTPException(status_code=400, detail=f"Job is in {job.status} state, cannot approve.")
     
-    # Update scenes if provided
     if request.scenes:
-        # Update scenes with user edits
         updated_scenes = []
         for s in request.scenes:
-            # Re-synthesize Veo prompt from potentially edited fields
             p = s.prompt
             veo_prompt = (
                 f"{p.style.cinematic_style} style, {p.style.color_grade}. "
@@ -607,21 +511,19 @@ async def approve_script(job_id: str, request: ApprovalRequest, background_tasks
             updated_scenes.append(s)
             
         job.scenes = updated_scenes
-        save_jobs()
+        db.save_job(job)
         logger.info(f"[{job_id}] Updated {len(job.scenes)} scenes with user edits.")
 
-    # Start production
     background_tasks.add_task(production_loop, job_id)
     
     return {"status": "production_started"}
 
 @app.get("/movie_status/{job_id}")
 async def get_movie_status(job_id: str):
-    if job_id not in jobs:
+    job = db.get_job(job_id)
+    if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     
-    job = jobs[job_id]
-    # Debug log to verify scenes are present
     if job.status == "waiting_for_approval":
         logger.info(f"[{job_id}] Returning status: {job.status}, Scenes: {len(job.scenes)}")
         

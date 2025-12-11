@@ -40,7 +40,12 @@ app = FastAPI(title="Universal Document Summarization Backend")
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:8501", "http://127.0.0.1:8501",
+                   "http://localhost:5173", "http://127.0.0.1:5173",
+                   "http://localhost:5174", "http://127.0.0.1:5174",
+                   "http://localhost:8080", "http://127.0.0.1:8080",
+                   "https://nexusai-962267416185.asia-south1.run.app",
+                   "*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -81,7 +86,27 @@ import uuid
 from datetime import datetime
 
 # In-memory storage for analytics
-job_history = []
+import json
+HISTORY_FILE = "analytics.json"
+
+def load_history():
+    if os.path.exists(HISTORY_FILE):
+        try:
+            with open(HISTORY_FILE, "r") as f:
+                return json.load(f)
+        except Exception as e:
+            logger.error(f"Failed to load history: {e}")
+            return []
+    return []
+
+def save_history(history):
+    try:
+        with open(HISTORY_FILE, "w") as f:
+            json.dump(history, f, indent=2)
+    except Exception as e:
+        logger.error(f"Failed to save history: {e}")
+
+job_history = load_history()
 
 @app.post("/summarize")
 async def summarize_document(files: List[UploadFile] = File(...), prompt: str = Form(None), model: str = Form("gemini-2.5-flash")):
@@ -204,6 +229,7 @@ async def summarize_document(files: List[UploadFile] = File(...), prompt: str = 
             "status": status,
             "time": start_time.strftime("%Y-%m-%d %H:%M:%S")
         })
+        save_history(job_history)
 
 @app.get("/analytics")
 def get_analytics():
@@ -212,6 +238,10 @@ def get_analytics():
 @app.get("/")
 def health_check():
     return {"status": "Documents Summarization Service Running"}
+
+@app.get("/health")
+def health_check_explicit():
+    return {"status": "healthy"}
 
 @app.get("/summarize")
 def health_check_summarize():

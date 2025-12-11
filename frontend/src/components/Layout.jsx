@@ -193,11 +193,6 @@ const Layout = ({ children }) => {
                             <NavItem to="/documents-summarization" icon={FileText} label="Documents Summarization" />
                             <NavItem to="/youtube-transcript" icon={Youtube} label="YouTube Transcript" />
                             <NavItem to="/chat" icon={MessageSquare} label="Chat & Q&A" />
-                            <div className="my-4 border-t border-slate-100 dark:border-slate-800" />
-                            <NavItem to="/image-gallery" icon={GalleryHorizontal} label="Image Gallery" />
-                            <NavItem to="/gallery" icon={GalleryHorizontal} label="Video Gallery" />
-                            <NavItem to="/image-stats" icon={BarChart3} label="Image Analytics" />
-                            <NavItem to="/video-stats" icon={BarChart3} label="Video Analytics" />
                         </>
                     )}
                 </nav>
@@ -234,7 +229,7 @@ const Layout = ({ children }) => {
                     {children}
                 </div>
             </main>
-        </div>
+        </div >
     );
 };
 

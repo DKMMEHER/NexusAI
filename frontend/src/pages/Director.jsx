@@ -178,19 +178,7 @@ const Director = () => {
                                         className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all"
                                     />
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                                        Resolution
-                                    </label>
-                                    <select
-                                        value={resolution}
-                                        onChange={(e) => setResolution(e.target.value)}
-                                        className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all"
-                                    >
-                                        <option value="1080p">1080p</option>
-                                        <option value="720p">720p</option>
-                                    </select>
-                                </div>
+                                {/* Resolution option hidden as strictly 720p is required for extension */}
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">
@@ -409,7 +397,7 @@ const Director = () => {
                                     <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">Final Movie</h3>
                                     <div className="aspect-video bg-black rounded-xl overflow-hidden relative group">
                                         <video
-                                            src={`http://127.0.0.1:8006/videos/${jobStatus.final_video_path.split(/[\\/]/).pop()}`}
+                                            src={`/director/videos/${jobStatus.final_video_path.split(/[\\/]/).pop()}`}
                                             controls
                                             className="w-full h-full"
                                         />
@@ -420,7 +408,7 @@ const Director = () => {
                                             Production Completed Successfully!
                                         </p>
                                         <a
-                                            href={`http://127.0.0.1:8006/videos/${jobStatus.final_video_path.split(/[\\/]/).pop()}`}
+                                            href={`/director/videos/${jobStatus.final_video_path.split(/[\\/]/).pop()}`}
                                             download
                                             className="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
                                         >

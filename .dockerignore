@@ -1,0 +1,33 @@
+# Version Control
+.git/
+.gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.venv/
+.env
+
+# Dependencies
+node_modules/
+wheels/
+*.egg-info/
+dist/
+build/
+
+# Local Data & Media (Crucial to exclude!)
+Generated_Video/
+jobs.json
+*.mp4
+*.jpg
+*.png
+*.txt
+!requirements.txt
+
+# Logs
+*.log
+
+# IDEs
+.vscode/
+.idea/

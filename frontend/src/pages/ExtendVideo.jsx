@@ -97,8 +97,8 @@ const ExtendVideo = () => {
 
             const response = await api.extendVideo(formData);
 
-            if (response.data.ok) {
-                updateJobStatus(newJob.id, 'processing', response.data);
+            if (response.ok) {
+                updateJobStatus(newJob.id, 'processing', response);
                 toast.success("Job started successfully!", { id: toastId });
                 setPrompt('');
                 setFiles([]);

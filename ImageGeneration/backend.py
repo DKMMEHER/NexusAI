@@ -24,6 +24,12 @@ router = APIRouter()
 def health_check():
     return {"status": "Image Generation Service Running"}
 
+@router.get("/health")
+def health_check_explicit():
+    return {"status": "healthy"}
+
+
+
 # Base URL pattern - will be formatted with model name
 API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
@@ -138,6 +144,7 @@ def call_nano_banana(api_key: str, prompt: str, images: List[dict] = None, model
 
 @router.post("/generate")
 def generate_image(api_key: str = Form(None), prompt: str = Form(...), model: str = Form("gemini-2.5-flash-image"), grounding: bool = Form(False), aspect_ratio: str = Form(None)):
+    print(f"DEBUG: generate_image called with prompt='{prompt}' model='{model}'", flush=True)
     final_key = get_api_key(api_key)
     system_prompt = random.choice(PROMPTS["generate_image"])
     full_prompt = f"{system_prompt} {prompt}"

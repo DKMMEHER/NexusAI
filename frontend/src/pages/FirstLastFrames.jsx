@@ -56,8 +56,8 @@ const FirstLastFrames = () => {
 
             const response = await api.firstLastFrames(formData);
 
-            if (response.data.ok) {
-                updateJobStatus(newJob.id, 'processing', response.data);
+            if (response.ok) {
+                updateJobStatus(newJob.id, 'processing', response);
                 toast.success("Job started successfully!", { id: toastId });
                 setPrompt('');
                 setFirstFrame([]);
@@ -68,7 +68,10 @@ const FirstLastFrames = () => {
             }
         } catch (err) {
             console.error("Failed to generate video", err);
-            const errorMessage = err.response?.data?.detail || 'Failed to generate video';
+            let errorMessage = err.response?.data?.detail || 'Failed to generate video';
+            if (typeof errorMessage === 'object') {
+                errorMessage = JSON.stringify(errorMessage);
+            }
             toast.error(errorMessage, { id: toastId });
             updateJobStatus(newJob.id, 'failed');
         } finally {
@@ -110,7 +113,7 @@ const FirstLastFrames = () => {
                                 />
                             </div>
 
-                            <AdvancedSettings settings={settings} setSettings={setSettings} showModel={false} />
+                            <AdvancedSettings settings={settings} setSettings={setSettings} showModel={false} showDuration={false} />
 
                             <div className="flex justify-end">
                                 <button

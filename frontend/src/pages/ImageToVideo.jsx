@@ -55,8 +55,8 @@ const ImageToVideo = () => {
 
             const response = await api.imageToVideo(formData);
 
-            if (response.data.ok) {
-                updateJobStatus(newJob.id, 'processing', response.data);
+            if (response.ok) {
+                updateJobStatus(newJob.id, 'processing', response);
                 toast.success("Job started successfully!", { id: toastId });
                 setPrompt('');
                 setFiles([]);
@@ -66,7 +66,10 @@ const ImageToVideo = () => {
             }
         } catch (err) {
             console.error("Failed to generate video", err);
-            const errorMessage = err.response?.data?.detail || 'Failed to generate video';
+            let errorMessage = err.response?.data?.detail || 'Failed to generate video';
+            if (typeof errorMessage === 'object') {
+                errorMessage = JSON.stringify(errorMessage);
+            }
             toast.error(errorMessage, { id: toastId });
             updateJobStatus(newJob.id, 'failed');
         } finally {
@@ -102,7 +105,7 @@ const ImageToVideo = () => {
                                 <PromptPresets onSelect={(style) => setPrompt(prev => prev ? `${prev}, ${style}` : style)} />
                             </div>
 
-                            <AdvancedSettings settings={settings} setSettings={setSettings} showModel={true} />
+                            <AdvancedSettings settings={settings} setSettings={setSettings} showModel={true} showDuration={false} />
 
                             <div className="flex justify-end">
                                 <button

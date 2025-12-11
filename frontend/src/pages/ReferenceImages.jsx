@@ -50,14 +50,14 @@ const ReferenceImages = () => {
             const formData = new FormData();
             formData.append('prompt', prompt);
             files.forEach(file => {
-                formData.append('reference_images', file);
+                formData.append('images', file); // Backend expects 'images'
             });
             Object.keys(settings).forEach(key => formData.append(key, settings[key]));
 
             const response = await api.referenceImages(formData);
 
-            if (response.data.ok) {
-                updateJobStatus(newJob.id, 'processing', response.data);
+            if (response.ok) {
+                updateJobStatus(newJob.id, 'processing', response);
                 toast.success("Job started successfully!", { id: toastId });
                 setPrompt('');
                 setFiles([]);
@@ -67,7 +67,10 @@ const ReferenceImages = () => {
             }
         } catch (err) {
             console.error("Failed to generate video", err);
-            const errorMessage = err.response?.data?.detail || 'Failed to generate video';
+            let errorMessage = err.response?.data?.detail || 'Failed to generate video';
+            if (typeof errorMessage === 'object') {
+                errorMessage = JSON.stringify(errorMessage);
+            }
             toast.error(errorMessage, { id: toastId });
             updateJobStatus(newJob.id, 'failed');
         } finally {
@@ -103,7 +106,7 @@ const ReferenceImages = () => {
                                 />
                             </div>
 
-                            <AdvancedSettings settings={settings} setSettings={setSettings} showModel={false} />
+                            <AdvancedSettings settings={settings} setSettings={setSettings} showModel={false} showDuration={false} />
 
                             <div className="flex justify-end">
                                 <button

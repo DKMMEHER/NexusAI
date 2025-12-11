@@ -21,7 +21,12 @@ app = FastAPI(title="Chat & Q&A Backend")
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:8501", "http://127.0.0.1:8501",
+                   "http://localhost:5173", "http://127.0.0.1:5173",
+                   "http://localhost:5174", "http://127.0.0.1:5174",
+                   "http://localhost:8080", "http://127.0.0.1:8080",
+                   "https://nexusai-962267416185.asia-south1.run.app",
+                   "*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -159,18 +164,46 @@ async def chat_endpoint(
         return JSONResponse({"detail": str(e)}, status_code=500)
     
     finally:
+        # Calculate Metrics
+        now = datetime.now()
+        one_minute_ago = now.timestamp() - 60
+        one_day_ago = now.timestamp() - 86400
+        
+        # RPM (Requests Per Minute)
+        recent_jobs = [j for j in job_history if datetime.strptime(j['time'], "%Y-%m-%d %H:%M:%S").timestamp() > one_minute_ago]
+        rpm = len(recent_jobs) + 1 # Include current job
+        
+        # RPD (Requests Per Day)
+        daily_jobs = [j for j in job_history if datetime.strptime(j['time'], "%Y-%m-%d %H:%M:%S").timestamp() > one_day_ago]
+        rpd = len(daily_jobs) + 1 # Include current job
+
+        # TPM (Tokens Per Minute)
+        tpm = 0
+        current_tokens = 0
+        try:
+             # Try to convert token_usage to int safely
+             current_tokens = int(token_usage)
+        except:
+             current_tokens = 0
+
+        # Sum tokens from recent jobs
+        for job in recent_jobs:
+            tpm += int(job.get('tokens', 0))
+        tpm += current_tokens
+
         # Record Job
-        duration = datetime.now() - start_time
         job_history.insert(0, {
             "job_id": job_id,
             "type": tool_type,
             "model": model,
-            "rpm": "N/A", # Mock or calculate if possible
-            "tpm": token_usage,
-            "rpd": "N/A",
+            "rpm": rpm,
+            "tpm": tpm,
+            "rpd": rpd,
+            "tokens": current_tokens, # Store for future TPM calc
             "status": status,
             "time": start_time.strftime("%Y-%m-%d %H:%M:%S")
         })
+        save_history(job_history)
 
 @app.get("/analytics")
 def get_analytics():
@@ -179,6 +212,10 @@ def get_analytics():
 @app.get("/")
 def health_check():
     return {"status": "Chat Service Running"}
+
+@app.get("/health")
+def health_check_explicit():
+    return {"status": "healthy"}
 
 @app.get("/chat")
 def health_check_chat():

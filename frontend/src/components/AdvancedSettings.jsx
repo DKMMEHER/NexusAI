@@ -1,7 +1,7 @@
 import React from 'react';
 import { Settings2 } from 'lucide-react';
 
-const AdvancedSettings = ({ settings, setSettings, showModel = false }) => {
+const AdvancedSettings = ({ settings, setSettings, showModel = false, showDuration = true }) => {
     const handleChange = (e) => {
         const { name, value } = e.target;
         setSettings(prev => ({
@@ -65,21 +65,23 @@ const AdvancedSettings = ({ settings, setSettings, showModel = false }) => {
                     </select>
                 </div>
 
-                <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                        Duration
-                    </label>
-                    <select
-                        name="duration_seconds"
-                        value={settings.duration_seconds}
-                        onChange={handleChange}
-                        className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                    >
-                        <option value="4">4 Seconds</option>
-                        <option value="6">6 Seconds</option>
-                        <option value="8">8 Seconds</option>
-                    </select>
-                </div>
+                {showDuration && (
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                            Duration
+                        </label>
+                        <select
+                            name="duration_seconds"
+                            value={settings.duration_seconds}
+                            onChange={handleChange}
+                            className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                        >
+                            <option value="4">4 Seconds</option>
+                            <option value="6">6 Seconds</option>
+                            <option value="8">8 Seconds</option>
+                        </select>
+                    </div>
+                )}
             </div>
         </div>
     );

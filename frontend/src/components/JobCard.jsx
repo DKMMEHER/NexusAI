@@ -35,20 +35,20 @@ const JobCard = ({ job }) => {
 
             try {
                 const res = await api.getJobStatus(operationName);
-                if (res.data.ok) {
-                    const status = res.data.status; // COMPLETE, POLLING, ERROR
+                if (res.ok) {
+                    const status = res.status; // COMPLETE, POLLING, ERROR
 
                     if (status === 'COMPLETE') {
                         // Preserve operation_name from the existing job result or the current polling scope
-                        updateJobStatus(job.id, 'completed', { ...res.data, operation_name: operationName });
+                        updateJobStatus(job.id, 'completed', { ...res, operation_name: operationName });
                         setStatus('completed');
                         setIsPolling(false);
                         toast.success("Video generation complete!");
                     } else if (status === 'ERROR') {
-                        updateJobStatus(job.id, 'failed', res.data);
+                        updateJobStatus(job.id, 'failed', res);
                         setStatus('failed');
                         setIsPolling(false);
-                        toast.error(`Job failed: ${res.data.message}`);
+                        toast.error(`Job failed: ${res.message}`);
                     } else {
                         // Still polling
                         setStatus('processing');

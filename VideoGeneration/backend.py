@@ -45,6 +45,10 @@ logging.basicConfig(
 )
 
 app = FastAPI(title="Veo 3.1 Backend Suite")
+
+@app.get("/health")
+def health_check():
+    return {"status": "healthy"}
 DEFAULT_MODEL = os.getenv("VEO_MODEL_NAME", "veo-3.1-fast-generate-preview")
 # NEW: models that support referenceImages and first/last frames
 SUPPORTED_MODEL = os.getenv("VEO_SUPPORTED_MODEL", "veo-3.1-generate-preview")
@@ -52,7 +56,11 @@ SUPPORTED_MODEL = os.getenv("VEO_SUPPORTED_MODEL", "veo-3.1-generate-preview")
 # Allow Streamlit (port 8501)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8501", "http://127.0.0.1:8501", "http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5174", "http://127.0.0.1:5174"],
+    allow_origins=["http://localhost:8501", "http://127.0.0.1:8501", 
+                   "http://localhost:5173", "http://127.0.0.1:5173", 
+                   "http://localhost:5174", "http://127.0.0.1:5174",
+                   "http://localhost:8080", "http://127.0.0.1:8080",
+                   "https://nexusai-962267416185.asia-south1.run.app"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -83,6 +91,7 @@ async def text_to_video_endpoint(
 ):
     try:
         result = generate_text_to_video(prompt, model, resolution=resolution, aspect_ratio=aspect_ratio, duration_seconds=duration_seconds)
+        print(f"DEBUG: text_to_video success, returning: {result}")
         return {"ok": True, **result}
     except Exception as e:
         logger.exception("text_to_video failed")

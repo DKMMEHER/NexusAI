@@ -1,0 +1,20 @@
+services:
+  nexus-ai:
+    build: .
+    ports:
+      - "8080:8080"
+    env_file:
+      - "C:/Study/GenAI/.env"
+    environment:
+      - PORT=8080
+      - TZ=Asia/Kolkata
+    volumes:
+      - ./Generated_Video:/app/Generated_Video
+      - ./Chat:/app/Chat
+      - ./Director:/app/Director
+      - ./DocumentsSummarization:/app/DocumentsSummarization
+      - ./ImageGeneration:/app/ImageGeneration
+      - ./VideoGeneration:/app/VideoGeneration
+      - ./YoutubeTranscript:/app/YoutubeTranscript
+      - ./start.sh:/app/start.sh
+    restart: unless-stopped

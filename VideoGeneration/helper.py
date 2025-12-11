@@ -582,91 +582,54 @@ def generate_video_from_reference_images(
     if not images:
         raise RuntimeError("generate_video_from_reference_images_rest: no images provided")
 
-    # Build URL for predictLongRunning
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:predictLongRunning"
-    params = {"key": api_key}
-    headers = {"Content-Type": "application/json"}
+    client = create_genai_client()
+    
+    # helper to guess mime type
+    def get_mime(b):
+        if b[:8].startswith(b"\x89PNG\r\n\x1a\n"): return "image/png"
+        if b[:2] == b"\xff\xd8": return "image/jpeg"
+        if b[:4] == b"RIFF": return "image/webp"
+        return "image/jpeg"
 
-    # Build referenceImages payload
-    ref_images_payload = []
+    ref_images = []
     for img_bytes in images:
-        # minimal mime type guessing
-        mime_type = "image/jpeg"
-        try:
-            if img_bytes[:8].startswith(b"\x89PNG\r\n\x1a\n"):
-                mime_type = "image/png"
-            elif img_bytes[:2] == b"\xff\xd8":
-                mime_type = "image/jpeg"
-            elif img_bytes[:4] == b"RIFF":
-                mime_type = "image/webp"
-        except Exception:
-            pass
-
-        b64 = base64.b64encode(img_bytes).decode("ascii")
-        ref_images_payload.append(
-            {
-                "image": {
-                    "bytesBase64Encoded": b64,
-                    "mimeType": mime_type,
-                }
-            }
+        # SDK expects Image object with 'image_bytes' (raw bytes)
+        image_part = types.Image(
+            image_bytes=img_bytes,
+            mime_type=get_mime(img_bytes)
         )
+        # Wrap in VideoGenerationReferenceImage
+        ref_img = types.VideoGenerationReferenceImage(image=image_part)
+        ref_images.append(ref_img)
 
-    # Build top-level instance
-    instance = {
-        "prompt": prompt,
-        "referenceImages": ref_images_payload,
-    }
-
-    body = {
-        "instances": [instance],
-        "parameters": {
-            "aspectRatio": aspect_ratio,
-            "durationSeconds": duration_seconds,
-            # "resolution": resolution # resolution might not be supported in REST parameters for all models, but we can try
-        }
-    }
-
+    logger.info(f"generate_video_from_reference_images: call SDK generate_videos with {len(ref_images)} refs")
+    
     try:
-        logger.info(
-            "generate_video_from_reference_images_rest: POST %s (model=%s, refs=%d)",
-            url,
-            model,
-            len(ref_images_payload),
+        op = client.models.generate_videos(
+            model=model,
+            prompt=prompt,
+            config=types.GenerateVideosConfig(
+                aspect_ratio=aspect_ratio,
+                duration_seconds=duration_seconds,
+                reference_images=ref_images
+            )
         )
-        resp = requests.post(
-            url,
-            params=params,
-            headers=headers,
-            data=json.dumps(body),
-            timeout=300,
-        )
-    except requests.RequestException as e:
-        logger.exception("generate_video_from_reference_images_rest: HTTP request failed")
-        raise RuntimeError(f"REST request failed: {e}")
+    except Exception as e:
+         logger.exception("generate_video_from_reference_images: SDK call failed")
+         # fall through to error handling or re-raise
+         raise RuntimeError(f"SDK generate_videos failed: {e}")
 
-    # Parse response JSON
-    try:
-        j = resp.json()
-    except Exception:
-        raise RuntimeError(
-            f"REST call returned non-JSON: status={resp.status_code} text={resp.text}"
-        )
+    # Extract operation name
+    if hasattr(op, "name"):
+        op_name = op.name
+    elif hasattr(op, "operation") and hasattr(op.operation, "name"):
+         op_name = op.operation.name
+    else:
+        # fallback
+        op_name = str(op)
 
-    if resp.status_code not in (200, 201):
-        raise RuntimeError(
-            f"REST predictLongRunning (referenceImages) failed: "
-            f"status={resp.status_code} body={j}"
-        )
-
-    op_name = j.get("name") or j.get("operation") or j.get("operation_name")
-    if not op_name:
-        raise RuntimeError(
-            f"REST (referenceImages) succeeded but no operation name returned: {j}"
-        )
-
-    logger.info("generate_video_from_reference_images_rest: started operation %s", op_name)
-    return {"operation_name": op_name, "message": "reference-image video started (via REST)"}
+    logger.info("generate_video_from_reference_images: started operation %s", op_name)
+    return {"operation_name": op_name, "message": "reference-image video started (via SDK)"}
 
 def generate_video_from_first_last_frames(
     prompt: str,
@@ -1127,13 +1090,37 @@ def get_operation_status(operation_name: str) -> Dict[str, Any]:
                 except Exception:
                     pass
         raw = str(op)
+        
+        status_str = "COMPLETE" if done else "POLLING"
+        message_str = "operation complete" if done else "operation running"
+
+        # Check for Safety Filter Blocking
+        if done:
+            resp = getattr(op, "response", None) or getattr(op, "result", None)
+            if isinstance(op, dict) and not resp:
+                resp = op.get("response") or op.get("result")
+            
+            if resp:
+                rai_count = getattr(resp, "rai_media_filtered_count", None)
+                if isinstance(resp, dict) and rai_count is None:
+                    rai_count = resp.get("rai_media_filtered_count")
+                
+                if rai_count and rai_count > 0:
+                    rai_reasons = getattr(resp, "rai_media_filtered_reasons", None)
+                    if isinstance(resp, dict) and rai_reasons is None:
+                        rai_reasons = resp.get("rai_media_filtered_reasons")
+                    
+                    status_str = "ERROR"
+                    message_str = f"Blocked by Safety Filters: {rai_reasons}"
+                    logger.warning(f"Operation {operation_name} blocked: {message_str}")
+
         return {
             "operation_name": operation_name,
             "done": done,
-            "status": "COMPLETE" if done else "POLLING",
+            "status": status_str,
             "progress": progress,
             "eta_seconds": eta_seconds,
-            "message": "operation complete" if done else "operation running",
+            "message": message_str,
             "raw": raw,
         }
     except Exception as e:
@@ -1161,25 +1148,73 @@ def download_video_bytes(operation_name: str) -> Tuple[Optional[bytes], Optional
 
     resp = getattr(op, "response", None) or getattr(op, "result", None)
     if not resp:
-        logger.info(f"download_video_bytes: operation {operation_name} has no response/result")
+        # Try dict access if op is a dict
+        if isinstance(op, dict): 
+             resp = op.get("response") or op.get("result")
+    
+    if not resp:
+        logger.warning(f"download_video_bytes: operation {operation_name} has no response/result. Op keys: {op.keys() if isinstance(op, dict) else dir(op)}")
         return None, None
 
+    # Try snake_case then camelCase
     videos = getattr(resp, "generated_videos", None)
+    if videos is None and isinstance(resp, dict):
+        videos = resp.get("generated_videos") or resp.get("generatedVideos")
+
+    # Check for RAI (Safety) Filtering
+    rai_count = getattr(resp, "rai_media_filtered_count", None)
+    if isinstance(resp, dict) and rai_count is None:
+        rai_count = resp.get("rai_media_filtered_count")
+    
+    rai_reasons = getattr(resp, "rai_media_filtered_reasons", None)
+    if isinstance(resp, dict) and rai_reasons is None:
+        rai_reasons = resp.get("rai_media_filtered_reasons")
+
+    if rai_count and rai_count > 0:
+        logger.warning(f"download_video_bytes: Video blocked by safety filters. Count: {rai_count}, Reasons: {rai_reasons}")
+        # We can't return the video, but we should log clearly.
+        # Ideally we'd throw a specific error, but keeping signature:
+        return None, None
+        
     if not videos:
-        logger.info(f"download_video_bytes: operation {operation_name} has no generated_videos")
+        # Log value to be sure
+        logger.warning(f"download_video_bytes: generated_videos is empty/None. Value: {videos}. Resp keys: {resp.keys() if isinstance(resp, dict) else dir(resp)}")
         return None, None
 
     video_obj = videos[0]
-    logger.info(f"download_video_bytes: found video_obj.video type: {type(video_obj.video)}")
+    
+    # Handle video_obj possibly being a dict
+    video_uri_or_name = None
+    if isinstance(video_obj, dict):
+        video_uri_or_name = video_obj.get("video")
+    else:
+        video_uri_or_name = getattr(video_obj, "video", None)
+
+    logger.info(f"download_video_bytes: found video uri/name type: {type(video_uri_or_name)} val: {video_uri_or_name}")
+
     try:
-        downloaded = client.files.download(file=video_obj.video)
+        # 1. Try file=
+        downloaded = client.files.download(file=video_uri_or_name)
     except Exception as e1:
-        logger.warning(f"download_video_bytes: first download attempt failed: {e1}")
+        logger.info(f"download_video_bytes: download(file=...) failed: {e1}")
         try:
-            # Try passing the name if it's an object
-            file_name = getattr(video_obj.video, "name", video_obj.video)
+            # Determine name
+            file_name = getattr(video_uri_or_name, "name", video_uri_or_name)
+            if isinstance(video_uri_or_name, dict):
+                file_name = video_uri_or_name.get("name")
+            
+            if not file_name:
+                 # If no name, maybe URI?
+                 if isinstance(video_uri_or_name, dict):
+                     file_name = video_uri_or_name.get("uri")
+                 else:
+                     file_name = getattr(video_uri_or_name, "uri", None)
+
             logger.info(f"download_video_bytes: trying download with name: {file_name}")
-            downloaded = client.files.download(name=file_name)
+            if file_name:
+                downloaded = client.files.download(name=file_name)
+            else:
+                raise ValueError("No file name found")
         except Exception as e2:
             logger.error(f"download_video_bytes: second download attempt failed: {e2}")
             return None, None

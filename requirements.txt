@@ -19,3 +19,5 @@ streamlit
 google-generativeai
 python-dotenv
 pathlib
+google-cloud-storage
+google-cloud-firestore

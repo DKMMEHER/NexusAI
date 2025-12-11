@@ -146,7 +146,7 @@ const ImageGeneration = () => {
                     throw new Error("Unknown mode selected.");
             }
 
-            const data = response.data;
+            const data = response;
             let finalResults = [];
             if (data.results) {
                 finalResults = data.results;

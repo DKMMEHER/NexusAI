@@ -108,6 +108,14 @@ NexusAI/
 └── start.sh                  # Container entrypoint
 ```
 
+## 🗺️ Roadmap
+
+*   [ ] **UI Improvements**: Enhanced aesthetics and user experience.
+*   [ ] **Prompt Presets**: Pre-defined styles for quicker creation.
+*   [ ] **User Authentication**: Secure login and user management.
+*   [ ] **Cloud Deployment**: Support for Render, AWS, GCP, Azure.
+*   [ ] **Advanced Video Features**: Motion control, masking, and camera path customization.
+
 ## 📜 License
 
 This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.

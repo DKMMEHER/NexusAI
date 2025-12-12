@@ -38,18 +38,6 @@ except ImportError:
 
 import sys
 logger = logging.getLogger("backend")
-logging.basicConfig(
-    level=logging.INFO, 
-    format="%(asctime)s %(levelname)s %(message)s",
-    handlers=[logging.StreamHandler(sys.stdout)]
-)
-
-app = FastAPI(title="Veo 3.1 Backend Suite")
-
-@app.get("/health")
-def health_check():
-    return {"status": "healthy"}
-DEFAULT_MODEL = os.getenv("VEO_MODEL_NAME", "veo-3.1-fast-generate-preview")
 # NEW: models that support referenceImages and first/last frames
 SUPPORTED_MODEL = os.getenv("VEO_SUPPORTED_MODEL", "veo-3.1-generate-preview")
 

@@ -53,3 +53,49 @@ class JsonDatabase(DatabaseProvider):
 
     def get_all_jobs(self) -> Dict[str, MovieJob]:
         return self.jobs
+
+class FirestoreDatabase(DatabaseProvider):
+    def __init__(self, project_id: str, collection: str = "nexus_director_jobs"):
+        try:
+            from google.cloud import firestore
+            self.db = firestore.Client(project=project_id)
+            self.collection = self.db.collection(collection)
+            logger.info(f"Connected to Firestore Project: {project_id}, Collection: {collection}")
+        except Exception as e:
+            logger.error(f"Failed to connect to Firestore: {e}")
+            raise e
+
+    def save_job(self, job: MovieJob):
+        try:
+            # Convert Pydantic model to dict (using jsonable_encoder style or .dict())
+            doc_ref = self.collection.document(job.job_id)
+            doc_ref.set(json.loads(job.json())) # Utilizing .json() then loads ensures generic serialization
+            logger.info(f"Saved job {job.job_id} to Firestore")
+        except Exception as e:
+            logger.error(f"Failed to save job to Firestore: {e}")
+
+    def get_job(self, job_id: str) -> Optional[MovieJob]:
+        try:
+            doc_ref = self.collection.document(job_id)
+            doc = doc_ref.get()
+            if doc.exists:
+                return MovieJob(**doc.to_dict())
+            return None
+        except Exception as e:
+            logger.error(f"Failed to get job from Firestore: {e}")
+            return None
+
+    def get_all_jobs(self) -> Dict[str, MovieJob]:
+        try:
+            jobs = {}
+            docs = self.collection.stream()
+            for doc in docs:
+                try:
+                    job = MovieJob(**doc.to_dict())
+                    jobs[job.job_id] = job
+                except Exception as parse_err:
+                     logger.warning(f"Skipping invalid job doc {doc.id}: {parse_err}")
+            return jobs
+        except Exception as e:
+            logger.error(f"Failed to get all jobs from Firestore: {e}")
+            return {}

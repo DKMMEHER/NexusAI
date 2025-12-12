@@ -290,18 +290,6 @@ def restore_old_image(api_key: str = Form(None), file: UploadFile = File(...), p
     if img_b64:
         return JSONResponse({"image": img_b64, "mime": out_mime})
     return JSONResponse({"detail": error}, status_code=status)
-
-# === FastAPI App Setup ===
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-
-app = FastAPI(title="Image Generation Backend")
-
-# CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )

@@ -22,7 +22,7 @@ from .models import (
     TechnicalPreferences, ScenePrompt, Scene, MovieJob, ApprovalRequest
 )
 from .storage import LocalStorage
-from .database import JsonDatabase
+from .database import JsonDatabase, FirestoreDatabase
 
 # Load environment variables
 load_dotenv()
@@ -54,9 +54,22 @@ app.add_middleware(
 )
 
 # Initialize Providers
-# In a real cloud setup, we would choose providers based on env vars
 storage = LocalStorage()
-db = JsonDatabase()
+
+# Database Selection Logic
+project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
+is_cloud_run = os.getenv("K_SERVICE") is not None
+
+if is_cloud_run and project_id:
+    logger.info(f"Detected Cloud Run environment. Using Firestore (Project: {project_id}).")
+    try:
+        db = FirestoreDatabase(project_id)
+    except Exception as e:
+        logger.error(f"Failed to initialize Firestore: {e}. Falling back to JsonDatabase (Ephemeral!).")
+        db = JsonDatabase()
+else:
+    logger.info("Running locally. Using JsonDatabase.")
+    db = JsonDatabase()
 
 # Serve Generated Videos (LocalStorage specific)
 # We still need this for LocalStorage to work with the frontend

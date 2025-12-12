@@ -1,8 +1,9 @@
 import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { Video, Image, Layers, Film, FastForward, Activity, Sun, Moon, Grid, LayoutDashboard, Wand2, Shirt, Megaphone, Clapperboard, History, FileText, BarChart3, GalleryHorizontal, Youtube, MessageSquare } from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Video, Image, Layers, Film, FastForward, Activity, Sun, Moon, Grid, LayoutDashboard, Wand2, Shirt, Megaphone, Clapperboard, History, FileText, BarChart3, GalleryHorizontal, Youtube, MessageSquare, LogOut, User } from 'lucide-react';
 import clsx from 'clsx';
 import { api } from '../api/client';
+import { useAuth } from '../contexts/AuthContext';
 
 const NavItem = ({ to, icon: Icon, label, highlight }) => {
     const location = useLocation();
@@ -28,6 +29,17 @@ const NavItem = ({ to, icon: Icon, label, highlight }) => {
 
 const Layout = ({ children }) => {
     const location = useLocation();
+    const navigate = useNavigate();
+    const { currentUser, logout } = useAuth();
+
+    const handleLogout = async () => {
+        try {
+            await logout();
+            navigate('/login');
+        } catch (error) {
+            console.error("Failed to log out", error);
+        }
+    };
 
     const [health, setHealth] = React.useState({
         image: false,
@@ -207,6 +219,7 @@ const Layout = ({ children }) => {
                         <span>{darkMode ? 'Light Mode' : 'Dark Mode'}</span>
                     </button>
 
+
                     <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-4 transition-colors duration-200">
                         <div className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">
                             <Activity size={16} className="text-emerald-500" />
@@ -224,8 +237,38 @@ const Layout = ({ children }) => {
             </aside>
 
             {/* Main Content */}
-            <main className="flex-1 ml-64 p-8">
-                <div className="max-w-5xl mx-auto">
+            <main className="flex-1 ml-64">
+                {/* Top User Bar */}
+                {currentUser && (
+                    <div className="sticky top-0 z-20 flex justify-end px-8 py-4 bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-sm">
+                        <div className="flex items-center gap-4 bg-white dark:bg-slate-800 p-2 pl-4 rounded-full shadow-sm border border-slate-100 dark:border-slate-700">
+                            <div className="flex flex-col items-end mr-2">
+                                <span className="text-sm font-medium text-slate-900 dark:text-white">
+                                    {currentUser.displayName || 'User'}
+                                </span>
+                                <span className="text-xs text-slate-500 dark:text-slate-400">
+                                    {currentUser.email}
+                                </span>
+                            </div>
+                            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary overflow-hidden">
+                                {currentUser.photoURL ? (
+                                    <img src={currentUser.photoURL} alt="Profile" className="w-full h-full object-cover" />
+                                ) : (
+                                    <User size={20} />
+                                )}
+                            </div>
+                            <button
+                                onClick={handleLogout}
+                                className="p-2 rounded-full hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-400 hover:text-red-500 transition-colors"
+                                title="Sign Out"
+                            >
+                                <LogOut size={18} />
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                <div className="max-w-5xl mx-auto px-8 pb-8">
                     {children}
                 </div>
             </main>

@@ -17,6 +17,11 @@ load_dotenv()
 
 app = FastAPI()
 
+# Health Check
+@app.get("/health")
+def health_check():
+    return {"status": "healthy"}
+
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,

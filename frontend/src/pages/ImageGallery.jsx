@@ -27,9 +27,14 @@ const ImageGallery = () => {
         { id: 'restore', label: 'Restored' },
     ];
 
-    const downloadImage = (base64Data, mimeType, timestamp) => {
+    const downloadImage = (imgObj, timestamp) => {
         const link = document.createElement('a');
-        link.href = `data:${mimeType};base64,${base64Data}`;
+        if (imgObj.type === 'base64') {
+            link.href = `data:${imgObj.mime};base64,${imgObj.data}`;
+        } else {
+            link.href = imgObj.src;
+        }
+
         const date = new Date(timestamp).toISOString().replace(/[:.]/g, '-');
         link.download = `image_${date}.png`;
         document.body.appendChild(link);
@@ -96,18 +101,25 @@ const ImageGallery = () => {
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    {filteredJobs.map((job) => (
-                        job.result?.images?.map((img, imgIdx) => (
+                    {filteredJobs.map((job) => {
+                        const displayImages = job.result?.images
+                            ? job.result.images.map(img => ({ type: 'base64', src: `data:${img.mime};base64,${img.image}`, data: img.image, mime: img.mime }))
+                            : job.image_path
+                                ? [{ type: 'url', src: job.image_path, mime: 'image/png' }]
+                                : [];
+
+                        return displayImages.map((img, imgIdx) => (
                             <div key={`${job.id}-${imgIdx}`} className="group relative bg-white dark:bg-slate-800 rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-md transition-all">
                                 <div className="aspect-square relative overflow-hidden bg-slate-100 dark:bg-slate-900">
                                     <img
-                                        src={`data:${img.mime};base64,${img.image}`}
-                                        alt={job.settings?.prompt || "Generated Image"}
+                                        src={img.src}
+                                        alt={job.settings?.prompt || job.prompt || "Generated Image"}
                                         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                        onError={(e) => { e.target.src = 'https://placehold.co/400?text=Image+Not+Found'; }}
                                     />
                                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                                         <button
-                                            onClick={() => downloadImage(img.image, img.mime, job.timestamp)}
+                                            onClick={() => downloadImage(img, job.timestamp)}
                                             className="p-2 bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white/30 transition-colors"
                                             title="Download"
                                         >
@@ -119,17 +131,17 @@ const ImageGallery = () => {
                                     </div>
                                 </div>
                                 <div className="p-4">
-                                    <p className="text-sm text-slate-600 dark:text-slate-300 line-clamp-2 mb-2" title={job.settings?.prompt}>
-                                        {job.settings?.prompt || "No prompt"}
+                                    <p className="text-sm text-slate-600 dark:text-slate-300 line-clamp-2 mb-2" title={job.settings?.prompt || job.prompt}>
+                                        {job.settings?.prompt || job.prompt || "No prompt"}
                                     </p>
                                     <div className="flex items-center justify-between text-xs text-slate-400">
                                         <span>{new Date(job.timestamp).toLocaleDateString()}</span>
-                                        <span>{job.settings?.model?.split('-')[1] || 'Gemini'}</span>
+                                        <span>{job.settings?.model?.split('-')[1] || job.model || 'Gemini'}</span>
                                     </div>
                                 </div>
                             </div>
-                        ))
-                    ))}
+                        ));
+                    })}
                 </div>
             )}
         </div>

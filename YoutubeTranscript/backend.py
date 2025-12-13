@@ -72,31 +72,31 @@ def extract_transcript_details(youtube_video_url):
 import uuid
 from datetime import datetime
 
-# In-memory storage for analytics
-import json
-HISTORY_FILE = "analytics.json"
+# Database Initialization
+from .database import JsonDatabase, FirestoreDatabase
+from auth import verify_token
+from fastapi import Depends, HTTPException
 
-def load_history():
-    if os.path.exists(HISTORY_FILE):
-        try:
-            with open(HISTORY_FILE, "r") as f:
-                return json.load(f)
-        except Exception as e:
-            logger.error(f"Failed to load history: {e}")
-            return []
-    return []
+project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
+is_cloud_run = os.getenv("K_SERVICE") is not None
 
-def save_history(history):
+if is_cloud_run and project_id:
+    logger.info(f"Detected Cloud Run environment. Using Firestore (Project: {project_id}).")
     try:
-        with open(HISTORY_FILE, "w") as f:
-            json.dump(history, f, indent=2)
+        db = FirestoreDatabase(project_id)
     except Exception as e:
-        logger.error(f"Failed to save history: {e}")
-
-job_history = load_history()
+        logger.error(f"Failed to initialize Firestore: {e}. Falling back to JsonDatabase.")
+        db = JsonDatabase()
+else:
+    logger.info("Running locally. Using JsonDatabase.")
+    db = JsonDatabase()
 
 @app.post("/transcript")
-async def get_transcript_summary(url: str = Form(...), model: str = Form("gemini-2.5-flash")):
+async def get_transcript_summary(
+    url: str = Form(...), 
+    model: str = Form("gemini-2.5-flash"),
+    user_id: str = Form(None)
+):
     job_id = str(uuid.uuid4())[:8]
     start_time = datetime.now()
     status = "Failed"
@@ -132,48 +132,35 @@ within 250 words. Please provide the summary of the text given here: """
         return JSONResponse({"detail": f"Backend Error: {str(e)}"}, status_code=500)
         
     finally:
-        # Calculate Metrics
+        # Calculate Metrics - placeholders or simplistic
         now = datetime.now()
-        one_minute_ago = now.timestamp() - 60
-        one_day_ago = now.timestamp() - 86400
         
-        # RPM (Requests Per Minute)
-        recent_jobs = [j for j in job_history if datetime.strptime(j['time'], "%Y-%m-%d %H:%M:%S").timestamp() > one_minute_ago]
-        rpm = len(recent_jobs) + 1 # Include current job
-        
-        # RPD (Requests Per Day)
-        daily_jobs = [j for j in job_history if datetime.strptime(j['time'], "%Y-%m-%d %H:%M:%S").timestamp() > one_day_ago]
-        rpd = len(daily_jobs) + 1 # Include current job
-
         # TPM (Tokens Per Minute)
-        # Note: This requires usage_metadata from response, which we'll try to extract
-        tpm = 0
         current_tokens = 0
         if response and hasattr(response, 'usage_metadata'):
             current_tokens = response.usage_metadata.total_token_count
         
-        # Sum tokens from recent jobs (assuming we store token count in history, which we will start doing)
-        for job in recent_jobs:
-            tpm += job.get('tokens', 0)
-        tpm += current_tokens
-
         # Record Job
-        job_history.insert(0, {
+        job_data = {
             "job_id": job_id,
+            "user_id": user_id, 
             "type": "Transcript",
             "model": model,
-            "rpm": rpm,
-            "tpm": tpm,
-            "rpd": rpd,
-            "tokens": current_tokens, # Store for future TPM calc
+            "rpm": 1,
+            "tpm": current_tokens,
+            "rpd": 1,
+            "tokens": current_tokens,
             "status": status,
             "time": start_time.strftime("%Y-%m-%d %H:%M:%S")
-        })
-        save_history(job_history)
+        }
+        
+        db.save_job(job_data)
 
 @app.get("/analytics")
-def get_analytics():
-    return job_history
+def get_analytics(user_id: str, token_uid: str = Depends(verify_token)):
+    if token_uid != user_id:
+        raise HTTPException(status_code=403, detail="User ID mismatch.")
+    return db.get_user_jobs(user_id)
 
 @app.get("/")
 def health_check():

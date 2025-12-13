@@ -1,17 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { BarChart3 } from 'lucide-react';
+import { api } from '../api/client';
+import { useAuth } from '../contexts/AuthContext';
 
 const ChatStats = () => {
+    const { currentUser } = useAuth();
     const [analyticsData, setAnalyticsData] = useState([]);
     const [timeRange, setTimeRange] = useState('all');
 
     const fetchAnalytics = async () => {
+        if (!currentUser) return;
         try {
-            const response = await fetch('/api/chat/analytics');
-            if (response.ok) {
-                const data = await response.json();
-                setAnalyticsData(data);
-            }
+            const data = await api.chat.getAnalytics(currentUser.uid);
+            setAnalyticsData(data);
         } catch (error) {
             console.error("Failed to fetch analytics", error);
         }
@@ -22,7 +23,7 @@ const ChatStats = () => {
         // Optional: Poll for updates
         const interval = setInterval(fetchAnalytics, 5000);
         return () => clearInterval(interval);
-    }, []);
+    }, [currentUser]);
 
     const filterByTimeRange = (job) => {
         if (timeRange === 'all') return true;
@@ -100,8 +101,8 @@ const ChatStats = () => {
                                         <td className="px-6 py-4 font-mono text-xs text-slate-500">{job.job_id}</td>
                                         <td className="px-6 py-4">
                                             <span className={`px-2.5 py-1 rounded-full text-[10px] font-medium ${job.type === 'Search' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' :
-                                                    job.type === 'Code' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' :
-                                                        'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300'
+                                                job.type === 'Code' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' :
+                                                    'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300'
                                                 }`}>
                                                 {job.type}
                                             </span>

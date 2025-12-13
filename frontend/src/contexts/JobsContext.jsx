@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { api } from '../api/client';
+import { useAuth } from './AuthContext';
 
 const JobsContext = createContext();
 
@@ -11,39 +13,82 @@ export const useJobs = () => {
 };
 
 export const JobsProvider = ({ children }) => {
-    const [jobs, setJobs] = useState(() => {
-        if (typeof window !== 'undefined') {
-            const savedJobs = localStorage.getItem('veo_jobs');
-            return savedJobs ? JSON.parse(savedJobs) : [];
-        }
-        return [];
-    });
+    const { currentUser } = useAuth();
+    const [jobs, setJobs] = useState([]);
 
-    const MAX_JOBS = 20;
+    const MAX_JOBS = 50; // Increased limit for combined history
 
+    // Load jobs from backend when user logs in
     useEffect(() => {
-        try {
-            localStorage.setItem('veo_jobs', JSON.stringify(jobs));
-        } catch (error) {
-            console.error("Failed to save jobs to localStorage:", error);
-            // If quota exceeded, try to save fewer jobs
-            if (error.name === 'QuotaExceededError' || error.code === 22) {
-                const reducedJobs = jobs.slice(0, 5); // Keep only 5 latest
-                try {
-                    localStorage.setItem('veo_jobs', JSON.stringify(reducedJobs));
-                    setJobs(reducedJobs); // Update state to match storage
-                } catch (retryError) {
-                    console.error("Still failed to save reduced jobs:", retryError);
-                }
-            }
-        }
-    }, [jobs]);
+        if (currentUser) {
+            Promise.all([
+                api.director.getMyJobs(currentUser.uid).catch(err => {
+                    console.error("Failed to fetch director jobs:", err);
+                    return [];
+                }),
+                api.getMyImages(currentUser.uid).catch(err => {
+                    console.error("Failed to fetch image jobs:", err);
+                    return [];
+                })
+            ]).then(([directorJobs, imageJobs]) => {
+                // Ensure arrays
+                const dJobs = Array.isArray(directorJobs) ? directorJobs : [];
+                const iJobs = Array.isArray(imageJobs) ? imageJobs : [];
 
-    const addJob = (job) => {
+                const combined = [...dJobs, ...iJobs];
+
+                // Sort by timestamp (newest first)
+                const sorted = combined.sort((a, b) => {
+                    const timeA = new Date(a.created_at || a.timestamp || 0);
+                    const timeB = new Date(b.created_at || b.timestamp || 0);
+                    return timeB - timeA;
+                });
+
+                setJobs(sorted);
+            });
+        } else {
+            setJobs([]);
+        }
+    }, [currentUser]);
+
+    const addJob = async (job) => {
+        // Optimistic update
         setJobs(prev => {
             const newJobs = [job, ...prev];
             return newJobs.slice(0, MAX_JOBS);
         });
+
+        // Persist to backend if user is logged in
+        if (currentUser) {
+            // Logic to determine if we need to manually save this job to Director External Service.
+            // Image Generation jobs are saved by the Image Generation Backend automatically.
+            // Director Movie jobs are saved by Director Backend automatically.
+            // TextToVideo jobs (and potentially others in future) are NOT saved automatically.
+
+            const isImageJob = ['generate', 'edit', 'tryon', 'ads', 'merge', 'scenes', 'restore'].includes(job.type);
+            const isDirectorMovie = job.type === 'director_movie';
+
+            if (!isImageJob && !isDirectorMovie) {
+                // Map simple job to MovieJob structure
+                const movieJob = {
+                    job_id: String(job.id),
+                    type: job.type || 'external',
+                    topic: job.prompt || 'Untitled',
+                    status: job.status,
+                    created_at: job.timestamp || new Date().toISOString(),
+                    user_id: currentUser.uid,
+                    model: job.settings?.model || 'unknown',
+                    resolution: job.settings?.resolution || '720p',
+                    aspect_ratio: job.settings?.aspect_ratio || '16:9'
+                };
+
+                try {
+                    await api.director.saveExternalJob(movieJob);
+                } catch (err) {
+                    console.error("Failed to save external job:", err);
+                }
+            }
+        }
     };
 
     const updateJobStatus = (jobId, status, result = null) => {
@@ -56,7 +101,8 @@ export const JobsProvider = ({ children }) => {
 
     const clearJobs = () => {
         setJobs([]);
-        localStorage.removeItem('veo_jobs');
+        // Ideally we would also clear backend, but that's a destructive operation.
+        // For now, allow clearing local view.
     };
 
     const removeJob = (jobId) => {

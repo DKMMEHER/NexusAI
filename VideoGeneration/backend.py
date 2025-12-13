@@ -41,6 +41,13 @@ logger = logging.getLogger("backend")
 # NEW: models that support referenceImages and first/last frames
 SUPPORTED_MODEL = os.getenv("VEO_SUPPORTED_MODEL", "veo-3.1-generate-preview")
 
+app = FastAPI()
+
+# Mount Generated_Video for static access (e.g. for previews/downloads if needed via direct link)
+from fastapi.staticfiles import StaticFiles
+os.makedirs("Generated_Videos", exist_ok=True)
+app.mount("/Generated_Videos", StaticFiles(directory="Generated_Videos"), name="Generated_Videos")
+
 # Allow Streamlit (port 8501)
 app.add_middleware(
     CORSMiddleware,
@@ -61,6 +68,42 @@ try:
 except Exception as e:
     logger.error(f"Failed to mount Image Generation router: {e}")
 
+# Persistence Initialization
+from .models import VideoJob
+from .database import JsonDatabase, FirestoreDatabase
+from .storage import LocalStorage, GoogleCloudStorage
+import uuid
+import google.auth
+from google.auth.exceptions import DefaultCredentialsError
+
+# Database Selection Logic
+project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
+is_cloud_run = os.getenv("K_SERVICE") is not None
+
+if is_cloud_run and project_id:
+    logger.info(f"Detected Cloud Run environment. Using Firestore (Project: {project_id}).")
+    try:
+        db = FirestoreDatabase(project_id)
+    except Exception as e:
+        logger.error(f"Failed to initialize Firestore: {e}. Falling back to JsonDatabase (Ephemeral!).")
+        db = JsonDatabase()
+    
+    # Cloud Storage Initialization
+    bucket_name = os.getenv("GCS_BUCKET_NAME", "nexus-ai-media")
+    try:
+        storage = GoogleCloudStorage(bucket_name)
+    except Exception as e:
+        logger.error(f"Failed to initialize GCS: {e}. Falling back to LocalStorage.")
+        storage = LocalStorage()
+else:
+    logger.info("Running locally. Using JsonDatabase and LocalStorage.")
+    db = JsonDatabase()
+    storage = LocalStorage()
+
+# Check auth if needed
+from auth import verify_token
+from fastapi import Depends
+
 # ----------------------------------------------------------------------
 # ENDPOINTS
 # ----------------------------------------------------------------------
@@ -75,10 +118,30 @@ async def text_to_video_endpoint(
     model: str = Form("veo-3.1-fast-generate-preview"),
     duration_seconds: int = Form(8),
     resolution: str = Form("1080p"),
-    aspect_ratio: str = Form("16:9")
+    aspect_ratio: str = Form("16:9"),
+    user_id: str = Form(None)
 ):
     try:
         result = generate_text_to_video(prompt, model, resolution=resolution, aspect_ratio=aspect_ratio, duration_seconds=duration_seconds)
+        
+        # Persistence: Save Initial Job
+        operation_name = result.get("operation_name")
+        if operation_name and user_id and user_id != "undefined":
+            job = VideoJob(
+                job_id=str(uuid.uuid4()),
+                user_id=user_id,
+                type="text_to_video",
+                prompt=prompt,
+                status="pending",
+                model=model,
+                created_at=datetime.now().isoformat(),
+                operation_name=operation_name,
+                duration=duration_seconds,
+                resolution=resolution,
+                aspect_ratio=aspect_ratio
+            )
+            db.save_job(job)
+            
         print(f"DEBUG: text_to_video success, returning: {result}")
         return {"ok": True, **result}
     except Exception as e:
@@ -92,11 +155,31 @@ async def image_to_video_endpoint(
     model: str = Form("veo-3.1-fast-generate-preview"),
     duration_seconds: int = Form(8),
     resolution: str = Form("1080p"),
-    aspect_ratio: str = Form("16:9")
+    aspect_ratio: str = Form("16:9"),
+    user_id: str = Form(None)
 ):
     try:
         image_bytes = await image.read()
         result = generate_image_to_video(prompt, image_bytes, model, resolution=resolution, aspect_ratio=aspect_ratio, duration_seconds=duration_seconds)
+        
+        # Persistence: Save Initial Job
+        operation_name = result.get("operation_name")
+        if operation_name and user_id and user_id != "undefined":
+            job = VideoJob(
+                job_id=str(uuid.uuid4()),
+                user_id=user_id,
+                type="image_to_video",
+                prompt=prompt,
+                status="pending",
+                model=model,
+                created_at=datetime.now().isoformat(),
+                operation_name=operation_name,
+                duration=duration_seconds,
+                resolution=resolution,
+                aspect_ratio=aspect_ratio
+            )
+            db.save_job(job)
+
         return {"ok": True, **result}
     except Exception as e:
         logger.exception("image_to_video failed")
@@ -109,7 +192,8 @@ async def video_from_reference_images_endpoint(
     model: str = Form("veo-3.1-generate-preview"),  # Default to supported model
     duration_seconds: int = Form(8),
     resolution: str = Form("1080p"),
-    aspect_ratio: str = Form("16:9")
+    aspect_ratio: str = Form("16:9"),
+    user_id: str = Form(None)
 ):
     try:
         # Read all images
@@ -125,6 +209,25 @@ async def video_from_reference_images_endpoint(
             aspect_ratio=aspect_ratio, 
             duration_seconds=duration_seconds
         )
+        
+        # Persistence: Save Initial Job
+        operation_name = result.get("operation_name")
+        if operation_name and user_id and user_id != "undefined":
+            job = VideoJob(
+                job_id=str(uuid.uuid4()),
+                user_id=user_id,
+                type="video_from_reference_images",
+                prompt=prompt,
+                status="pending",
+                model=model,
+                created_at=datetime.now().isoformat(),
+                operation_name=operation_name,
+                duration=duration_seconds,
+                resolution=resolution,
+                aspect_ratio=aspect_ratio
+            )
+            db.save_job(job)
+            
         return {"ok": True, **result}
     except HTTPException:
         raise
@@ -140,7 +243,8 @@ async def video_from_first_last_frames_endpoint(
     model: str = Form("veo-3.1-generate-preview"), # Default to supported model
     duration_seconds: int = Form(8),
     resolution: str = Form("1080p"),
-    aspect_ratio: str = Form("16:9")
+    aspect_ratio: str = Form("16:9"),
+    user_id: str = Form(None)
 ):
     try:
         first_bytes = await first_frame.read()
@@ -155,6 +259,25 @@ async def video_from_first_last_frames_endpoint(
             aspect_ratio=aspect_ratio, 
             duration_seconds=duration_seconds
         )
+        
+        # Persistence: Save Initial Job
+        operation_name = result.get("operation_name")
+        if operation_name and user_id and user_id != "undefined":
+            job = VideoJob(
+                job_id=str(uuid.uuid4()),
+                user_id=user_id,
+                type="video_from_first_last_frames",
+                prompt=prompt,
+                status="pending",
+                model=model,
+                created_at=datetime.now().isoformat(),
+                operation_name=operation_name,
+                duration=duration_seconds,
+                resolution=resolution,
+                aspect_ratio=aspect_ratio
+            )
+            db.save_job(job)
+
         return {"ok": True, **result}
     except HTTPException:
         raise
@@ -171,7 +294,8 @@ async def extend_veo_video_endpoint(
     model: str = Form("veo-3.1-fast-generate-preview"),
     duration_seconds: int = Form(8),
     resolution: str = Form("1080p"),
-    aspect_ratio: str = Form("16:9")
+    aspect_ratio: str = Form("16:9"),
+    user_id: str = Form(None)
 ):
     try:
         prior_video_obj = None
@@ -226,7 +350,25 @@ async def extend_veo_video_endpoint(
                     f.write(video_bytes)
                 print(f"DEBUG: Saved base video to {base_path} (size: {len(video_bytes)})")
                 logger.info(f"Saved base video for stitching: {base_path}")
-                
+        
+        # Persistence: Save Initial Job
+        operation_name = payload.get("operation_name")
+        if operation_name and user_id and user_id != "undefined":
+            job = VideoJob(
+                job_id=str(uuid.uuid4()),
+                user_id=user_id,
+                type="extend_veo_video",
+                prompt=prompt,
+                status="pending",
+                model=model,
+                created_at=datetime.now().isoformat(),
+                operation_name=operation_name,
+                duration=duration_seconds,
+                resolution=resolution,
+                aspect_ratio=aspect_ratio
+            )
+            db.save_job(job)
+
         return {"ok": True, **payload}
     except HTTPException:
         raise
@@ -256,7 +398,67 @@ def status(operation_name: str):
          return health_check_status()
 
     try:
-        return {"ok": True, **get_operation_status(operation_name)}
+        status_payload = get_operation_status(operation_name)
+        
+        # Persistence Logic: If done, ensure we have it saved
+        # FIX: Check 'done' boolean, not 'state' string
+        if status_payload.get("done") is True:
+            # Check DB to avoid re-saving
+            # We assume operation_name is unique enough or we search by it
+            # Ideally we filtered by pending status in DB? 
+            # For simplicity, we just check if we can update a job with this Op Name
+            
+            # Since we don't have a direct "get_job_by_operation" in abstraction (simple one),
+            # we can try to fetch all user jobs or just proceed to save if status is done.
+            # A more robust way:
+            try:
+                # 1. Download bytes
+                logger.info(f"Attempting to download bytes for operation: {operation_name}")
+                data, filename = download_video_bytes(operation_name)
+                
+                if data:
+                     logger.info(f"Downloaded {len(data)} bytes. Saving to storage...")
+                     # 2. Save to Storage (Storage checks existence too)
+                     # Using operation name as basis for filename to be consistent
+                     safe_name = operation_name.replace("/", "_") + ".mp4"
+                     final_path = storage.save_video(data, safe_name)
+                     logger.info(f"Video saved to: {final_path}")
+                     
+                     # 3. Update DB
+                     # We need to find the job. Since we don't have job_id here easily without querying...
+                     # We can query Firestore/JSON by operation_name.
+                     # For MVP: We iterates recent jobs or assume "Pending" jobs.
+                     # Since this is "status" polling, we might not have user_id here easily.
+                     # But we can update if we find a matching job in "pending" state.
+                     
+                     # Simple scan for now (inefficient for large DBs but fine for MVP)
+                     # We'll rely on the fact that we saved the operation_name.
+                     logger.info("Scanning for pending job to update...")
+                     all_jobs = db.get_user_jobs(None) # Get all jobs (impl dependent)
+                     logger.info(f"Found {len(all_jobs)} total jobs.")
+                     
+                     found_job = False
+                     for job_dict in all_jobs:
+                         if job_dict.get("operation_name") == operation_name:
+                             logger.info(f"Found matching job {job_dict.get('job_id')} with status {job_dict.get('status')}")
+                             if job_dict.get("status") == "pending":
+                                 job = VideoJob(**job_dict)
+                                 job.status = "completed"
+                                 job.video_path = final_path
+                                 job.progress = 100
+                                 db.save_job(job)
+                                 logger.info(f"Updated job {job.job_id} to completed with path {final_path}")
+                                 found_job = True
+                                 break
+                     if not found_job:
+                         logger.warning(f"No pending job found for operation {operation_name}")
+                else:
+                    logger.error("Download failed: No data returned.")
+
+            except Exception as e:
+                logger.error(f"Failed to persist completed video: {e}")
+                
+        return {"ok": True, **status_payload}
     except Exception as e:
         logger.exception("Status check failed")
         raise HTTPException(status_code=500, detail=str(e))
@@ -271,6 +473,13 @@ def download(operation_name: str):
     if not data:
         raise HTTPException(status_code=404, detail="Video not available or incomplete")
     
+    # Persistence: Ensure saved if downloaded
+    try:
+         safe_name = operation_name.replace("/", "_") + ".mp4"
+         storage.save_video(data, safe_name)
+    except Exception as e:
+         logger.error(f"Failed to auto-save downloaded video: {e}")
+
     # Check if we have a base video to stitch
     safe_op_name = operation_name.replace("/", "_")
     base_path = f"temp_base_{safe_op_name}.mp4"
@@ -307,7 +516,7 @@ def save_local(operation_name: str):
         if not data:
             raise HTTPException(status_code=404, detail="Video not available or incomplete")
 
-        out_dir = os.path.join(os.getcwd(), "Generated_Video")
+        out_dir = os.path.join(os.getcwd(), "Generated_Videos")
         os.makedirs(out_dir, exist_ok=True)
         IST = timezone(timedelta(hours=5, minutes=30))
         ts = datetime.now(IST).strftime("%Y%m%d-%H%M%S")

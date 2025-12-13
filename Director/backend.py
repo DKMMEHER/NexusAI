@@ -31,18 +31,14 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("Director")
 
+app = FastAPI(title="Director Video Service")
+
 # Configure Gemini
-api_key = os.getenv("GEMINI_API_KEY")
+api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
 if not api_key:
-    logger.error("GEMINI_API_KEY not found in environment variables")
+    logger.warning("No GEMINI_API_KEY or GOOGLE_API_KEY found in environment variables.")
 else:
     genai.configure(api_key=api_key)
-
-app = FastAPI(title="NexusAI Director Service")
-
-@app.get("/health")
-def health_check():
-    return {"status": "healthy"}
 
 # CORS
 app.add_middleware(
@@ -54,7 +50,15 @@ app.add_middleware(
 )
 
 # Initialize Providers
-storage = LocalStorage()
+# Initialize Providers
+# storage = LocalStorage() # Moved to conditional block below
+# Init Providers
+from .storage import LocalStorage, GoogleCloudStorage
+
+# Auth
+from fastapi import Header, Depends, HTTPException, Form
+from fastapi.security import HTTPAuthorizationCredentials
+from auth import verify_token
 
 # Database Selection Logic
 project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
@@ -67,14 +71,24 @@ if is_cloud_run and project_id:
     except Exception as e:
         logger.error(f"Failed to initialize Firestore: {e}. Falling back to JsonDatabase (Ephemeral!).")
         db = JsonDatabase()
+    
+    # Cloud Storage Initialization
+    bucket_name = os.getenv("GCS_BUCKET_NAME", "nexus-ai-media")
+    try:
+        storage = GoogleCloudStorage(bucket_name)
+    except Exception as e:
+        logger.error(f"Failed to initialize GCS: {e}. Falling back to LocalStorage.")
+        storage = LocalStorage()
+
 else:
-    logger.info("Running locally. Using JsonDatabase.")
+    logger.info("Running locally. Using JsonDatabase and LocalStorage.")
     db = JsonDatabase()
+    storage = LocalStorage()
 
 # Serve Generated Videos (LocalStorage specific)
 # We still need this for LocalStorage to work with the frontend
-os.makedirs("Generated_Video", exist_ok=True)
-app.mount("/videos", StaticFiles(directory="Generated_Video"), name="videos")
+os.makedirs("Generated_Videos", exist_ok=True)
+app.mount("/videos", StaticFiles(directory="Generated_Videos"), name="videos")
 
 
 # --- Core Logic ---
@@ -90,10 +104,16 @@ async def generate_script(job_id: str, topic: str, duration_seconds: int, resolu
         if resolution == "720p":
             duration_instruction = "For each scene, you MUST decide the duration. Choose either 4 or 8 seconds based on the pacing."
             scene_duration_placeholder = "4 or 8"
-        else:
             # 1080p usually requires fixed 8s for now (or whatever the constraint is)
             duration_instruction = "Each scene MUST be exactly 8 seconds long."
             scene_duration_placeholder = "8"
+
+        # Inject explicit language instruction if detected in topic
+        voiceover_language_placeholder = "English"
+        if "hindi" in topic.lower():
+            voiceover_language_placeholder = "Hindi"
+        elif "spanish" in topic.lower():
+            voiceover_language_placeholder = "Spanish"
 
         prompt = f"""
         You are a world-class Film Director and Cinematographer.
@@ -151,7 +171,8 @@ async def generate_script(job_id: str, topic: str, duration_seconds: int, resolu
                             "enabled": true,
                             "language": "{voiceover_language_placeholder}", 
                             "script": "The actual spoken words in the target language.",
-                            "tone": "..."
+                            "tone": "...",
+                            "lip_sync": "DISABLED - Character must NOT move lips."
                         }}
                     }},
                     "language_preferences": {{
@@ -174,7 +195,7 @@ async def generate_script(job_id: str, topic: str, duration_seconds: int, resolu
                         "Lighting direction must remain consistent."
                     ]
                 }},
-                "visual_prompt": "A text-to-video prompt string. Combine [visual_details.environment] + [visual_details.character] + [camera_direction] + [style]. NO REAL NAMES.", 
+                "visual_prompt": "A text-to-video prompt string. Combine [visual_details.environment] + [visual_details.character] + [camera_direction] + [style]. IMPORTANT: Append audio instruction: 'Audio: [voiceover.script]'. Append lip-sync instruction: '[voiceover.lip_sync]'. NO REAL NAMES.", 
                 "duration": {scene_duration_placeholder}
             }},
             ...
@@ -182,11 +203,7 @@ async def generate_script(job_id: str, topic: str, duration_seconds: int, resolu
         """
         
         # Inject explicit language instruction if detected in topic
-        voiceover_language_placeholder = "English"
-        if "hindi" in topic.lower():
-            voiceover_language_placeholder = "Hindi"
-        elif "spanish" in topic.lower():
-            voiceover_language_placeholder = "Spanish"
+        # (Moved above prompt definition)
         # Add more languages as needed
 
         
@@ -371,6 +388,7 @@ async def production_loop(job_id: str):
                     
                     scene.video_path = final_path
                     scene.status = "done"
+                    scene.operation_name = operation_name
                     
                     previous_operation_name = operation_name
                     logger.info(f"[{job_id}] Scene {scene.id} completed. Path: {final_path}")
@@ -445,6 +463,27 @@ async def stitch_movie(job_id: str):
         db.save_job(job)
         
         logger.info(f"[{job_id}] Stitching complete: {final_key}")
+
+        # Cleanup intermediate scene files
+        logger.info(f"[{job_id}] Cleaning up {len(valid_scenes)} intermediate scene files...")
+        for scene in valid_scenes:
+            if scene.video_path and os.path.exists(scene.video_path):
+                try:
+                    os.remove(scene.video_path)
+                    logger.info(f"[{job_id}] Deleted intermediate file: {scene.video_path}")
+                except Exception as ex:
+                    logger.warning(f"[{job_id}] Failed to delete {scene.video_path}: {ex}")
+            
+            # Also cleanup the "auto-saved" redundant file from VideoGeneration service
+            if scene.operation_name:
+                safe_op = scene.operation_name.replace("/", "_") + ".mp4"
+                auto_saved_path = os.path.join(os.getcwd(), "Generated_Videos", safe_op)
+                if os.path.exists(auto_saved_path):
+                    try:
+                        os.remove(auto_saved_path)
+                        logger.info(f"[{job_id}] Deleted redundant auto-save: {auto_saved_path}")
+                    except Exception as ex:
+                        logger.warning(f"[{job_id}] Failed to delete redundant {auto_saved_path}: {ex}")
         
     except subprocess.CalledProcessError as e:
         logger.error(f"[{job_id}] FFmpeg failed: {e.stderr.decode()}")
@@ -478,57 +517,81 @@ async def generate_script_task(job_id: str, request: MovieRequest):
         job.error = str(e)
         db.save_job(job)
 
-# --- Endpoints ---
-
 @app.post("/create_movie")
-async def create_movie(request: MovieRequest, background_tasks: BackgroundTasks):
-    job_id = str(uuid.uuid4())
+async def create_movie(
+    request: MovieRequest, 
+    background_tasks: BackgroundTasks,
+    token_uid: str = Depends(verify_token)
+):
+    if token_uid != request.user_id:
+        raise HTTPException(status_code=403, detail="User ID mismatch")
+
+    job_id = str(uuid.uuid4())[:8]
+    
     new_job = MovieJob(
         job_id=job_id,
         topic=request.topic,
-        status="starting",
-        progress=0,
-        created_at=datetime.now().isoformat(),
+        duration=request.duration_seconds,
+        status="queued",
         model=request.model,
         resolution=request.resolution,
-        aspect_ratio=request.aspect_ratio
+        aspect_ratio=request.aspect_ratio,
+        user_id=request.user_id,
+        created_at=datetime.now().isoformat(),
+        progress=0
     )
-    db.save_job(new_job)
     
-    # Start script generation only
-    background_tasks.add_task(generate_script_task, job_id, request)
-    
-    return {"job_id": job_id, "status": "started"}
-
-@app.post("/approve_script/{job_id}")
-async def approve_script(job_id: str, request: ApprovalRequest, background_tasks: BackgroundTasks):
-    job = db.get_job(job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-    
-    if job.status != "waiting_for_approval":
-        raise HTTPException(status_code=400, detail=f"Job is in {job.status} state, cannot approve.")
-    
+    # Logic for pre-defined scenes (e.g. from UI edit or retake)
     if request.scenes:
         updated_scenes = []
         for s in request.scenes:
             p = s.prompt
+            # Reconstruct visual prompt if needed
             veo_prompt = (
                 f"{p.style.cinematic_style} style, {p.style.color_grade}. "
                 f"{p.scene_description} "
                 f"{p.visual_details.environment}, {p.visual_details.character}. "
                 f"{p.camera_direction.movement}, {p.camera_direction.framing}, {p.camera_direction.focus}, {p.camera_direction.lens}. "
-                f"{p.motion_and_actions.character_action} {p.motion_and_actions.environment_motion}"
+                f"{p.motion_and_actions.character_action} {p.motion_and_actions.environment_motion}. "
+                f"Audio: {p.audio_design.voiceover.script}. "
+                f"Lip-sync: {p.audio_design.voiceover.lip_sync or 'DISABLED'}"
             )
             s.visual_prompt = veo_prompt
             updated_scenes.append(s)
             
-        job.scenes = updated_scenes
-        db.save_job(job)
-        logger.info(f"[{job_id}] Updated {len(job.scenes)} scenes with user edits.")
-
-    background_tasks.add_task(production_loop, job_id)
+        new_job.scenes = updated_scenes
+        db.save_job(new_job)
+        logger.info(f"[{job_id}] Created job with existing scenes. Starting production loop.")
+        background_tasks.add_task(production_loop, job_id)
+        return {"job_id": job_id, "status": "production_started"}
     
+    else:
+        db.save_job(new_job)
+        logger.info(f"[{job_id}] New job created. Starting script generation.")
+        background_tasks.add_task(generate_script_task, job_id, request)
+        return {"job_id": job_id, "status": "queued"}
+
+@app.post("/approve_script/{job_id}")
+async def approve_script(job_id: str, request: ApprovalRequest, background_tasks: BackgroundTasks):
+    """Approves the script and starts production."""
+    job = db.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    logger.info(f"[{job_id}] Script approved. Starting production.")
+    
+    # Update scenes if user modified them
+    if request.scenes:
+        logger.info(f"[{job_id}] Updating scenes from approval request.")
+        # Ensure we map dict back to Scene objects if needed, but Pydantic should handle it
+        # However, checking if request.scenes is list of dicts or objects
+        job.scenes = request.scenes
+    
+    job.status = "filming"
+    job.progress = 15
+    db.save_job(job)
+    
+    background_tasks.add_task(production_loop, job_id)
     return {"status": "production_started"}
 
 @app.get("/movie_status/{job_id}")
@@ -541,6 +604,22 @@ async def get_movie_status(job_id: str):
         logger.info(f"[{job_id}] Returning status: {job.status}, Scenes: {len(job.scenes)}")
         
     return job
+
+@app.get("/my_jobs/{user_id}")
+async def get_my_jobs(user_id: str, token_uid: str = Depends(verify_token)):
+    """Fetches all jobs belonging to a specific user."""
+    if token_uid != user_id:
+        raise HTTPException(status_code=403, detail="Unauthorized access to another user's jobs.")
+        
+    logger.info(f"Fetching jobs for user: {user_id}")
+    return db.get_user_jobs(user_id)
+
+@app.post("/save_external_job")
+async def save_external_job(job: MovieJob):
+    """Saves a job created by another service (e.g. TextToVideo)."""
+    logger.info(f"Saving external job: {job.job_id} (Type: {job.type})")
+    db.save_job(job)
+    return {"status": "saved"}
 
 @app.get("/")
 def health_check():

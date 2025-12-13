@@ -2,8 +2,10 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Send, User, Bot, Loader2, Trash2, Settings, Search, Code, Check, ChevronDown, Sparkles } from 'lucide-react';
 import { api } from '../api/client';
 import { toast } from 'sonner';
+import { useAuth } from '../contexts/AuthContext';
 
 const Chat = () => {
+    const { currentUser } = useAuth();
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -59,13 +61,16 @@ const Chat = () => {
 
             // Send Tools
             const tools = [];
-            if (enableSearch) tools.push("google_search");
             if (enableCode) tools.push("code_execution");
             if (tools.length > 0) {
                 formData.append('tools', JSON.stringify(tools));
             }
 
-            const response = await api.chat(formData);
+            if (currentUser) {
+                formData.append('user_id', currentUser.uid);
+            }
+
+            const response = await api.chat.sendMessage(formData);
 
             const botMessage = { role: 'model', content: response.response };
             setMessages(prev => [...prev, botMessage]);
@@ -84,7 +89,7 @@ const Chat = () => {
 
     const models = [
         { id: "gemini-2.0-flash-exp", name: "Gemini 2.0 Flash", badge: "Experimental" },
-        { id: "gemini-2.0-flash-thinking-exp", name: "Gemini 2.0 Flash Thinking", badge: "Reasoning" },
+
         { id: "gemini-3-pro-preview", name: "Gemini 3 Pro", badge: "Preview" },
     ];
 

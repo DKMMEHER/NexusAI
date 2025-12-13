@@ -2,32 +2,46 @@
 .git/
 .gitignore
 
-# Python
+# Python / Environment
 __pycache__/
 *.py[cod]
-*.so
+*$py.class
 .venv/
+venv/
+env/
 .env
 
-# Dependencies
+# Dependencies (will be re-installed inside container)
 node_modules/
-wheels/
-*.egg-info/
-dist/
-build/
+frontend/node_modules/
 
-# Local Data & Media (Crucial to exclude!)
-Generated_Video/
+# Generated Data & Media (Exclude from container build)
+Generated_Videos/
+Generated_Images/
 jobs.json
+images.json
+analytics.json
 *.mp4
-*.jpg
 *.png
-*.txt
-!requirements.txt
+*.jpg
+*.jpeg
 
-# Logs
-*.log
-
-# IDEs
-.vscode/
+# System / IDE
+.DS_Store
 .idea/
+.vscode/
+Thumbs.db
+
+# Secrets
+serviceAccountKey.json
+.streamlit/secrets.toml
+
+# Build Artifacts
+build/
+dist/
+*.egg-info/
+frontend/build/
+frontend/dist/
+
+# Tests
+test_*.py

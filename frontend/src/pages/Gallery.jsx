@@ -7,7 +7,10 @@ const Gallery = () => {
     const { jobs, clearJobs } = useJobs();
     const [filter, setFilter] = useState('all');
 
+    const videoTypes = ['text_to_video', 'image_to_video', 'reference_images', 'first_last', 'extend_video', 'director_movie'];
+
     const filteredJobs = jobs.filter(job => {
+        if (!videoTypes.includes(job.type)) return false;
         if (filter === 'all') return true;
         return job.type === filter;
     });
@@ -56,8 +59,8 @@ const Gallery = () => {
                         key={type.id}
                         onClick={() => setFilter(type.id)}
                         className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${filter === type.id
-                                ? 'bg-primary text-white shadow-lg shadow-primary/30'
-                                : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
+                            ? 'bg-primary text-white shadow-lg shadow-primary/30'
+                            : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
                             }`}
                     >
                         {type.label}

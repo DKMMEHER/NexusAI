@@ -16,12 +16,14 @@ import {
     AlertCircle,
     Globe
 } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
 
 const ImageGeneration = () => {
     const { mode: urlMode } = useParams();
     const navigate = useNavigate();
     const { addJob } = useJobs();
+    const { currentUser } = useAuth();
 
     // Validate mode
     const validModes = ['generate', 'edit', 'tryon', 'ads', 'merge', 'scenes', 'restore'];
@@ -97,6 +99,7 @@ const ImageGeneration = () => {
 
         const formData = new FormData();
         if (prompt) formData.append('prompt', prompt);
+        if (currentUser) formData.append('user_id', currentUser.uid);
 
         // Append Advanced Settings
         formData.append('model', selectedModel);

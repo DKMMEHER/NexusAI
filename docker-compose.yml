@@ -9,7 +9,8 @@ services:
       - PORT=8080
       - TZ=Asia/Kolkata
     volumes:
-      - ./Generated_Video:/app/Generated_Video
+      - ./Generated_Videos:/app/Generated_Videos
+      - ./Generated_Images:/app/Generated_Images
       - ./Chat:/app/Chat
       - ./Director:/app/Director
       - ./DocumentsSummarization:/app/DocumentsSummarization

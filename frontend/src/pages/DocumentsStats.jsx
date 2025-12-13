@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { BarChart3 } from 'lucide-react';
 import { api } from '../api/client';
+import { useAuth } from '../contexts/AuthContext';
 
 const DocumentsStats = () => {
+    const { currentUser } = useAuth();
     const [analyticsData, setAnalyticsData] = useState([]);
     const [timeRange, setTimeRange] = useState('all');
 
     const fetchAnalytics = async () => {
+        if (!currentUser) return;
         try {
-            const data = await api.documents.getAnalytics();
+            const data = await api.documents.getAnalytics(currentUser.uid);
             setAnalyticsData(data);
         } catch (error) {
             console.error("Failed to fetch analytics", error);
@@ -19,7 +22,7 @@ const DocumentsStats = () => {
         fetchAnalytics();
         const interval = setInterval(fetchAnalytics, 5000);
         return () => clearInterval(interval);
-    }, []);
+    }, [currentUser]);
 
     const filterByTimeRange = (job) => {
         if (timeRange === 'all') return true;

@@ -20,6 +20,10 @@ class DatabaseProvider(ABC):
     def get_all_jobs(self) -> Dict[str, MovieJob]:
         pass
 
+    @abstractmethod
+    def get_user_jobs(self, user_id: str) -> List[MovieJob]:
+        pass
+
 class JsonDatabase(DatabaseProvider):
     def __init__(self, file_path: str = "jobs.json"):
         self.file_path = file_path
@@ -53,6 +57,9 @@ class JsonDatabase(DatabaseProvider):
 
     def get_all_jobs(self) -> Dict[str, MovieJob]:
         return self.jobs
+
+    def get_user_jobs(self, user_id: str) -> List[MovieJob]:
+        return [job for job in self.jobs.values() if job.user_id == user_id]
 
 class FirestoreDatabase(DatabaseProvider):
     def __init__(self, project_id: str, collection: str = "nexus_director_jobs"):
@@ -99,3 +106,19 @@ class FirestoreDatabase(DatabaseProvider):
         except Exception as e:
             logger.error(f"Failed to get all jobs from Firestore: {e}")
             return {}
+
+    def get_user_jobs(self, user_id: str) -> List[MovieJob]:
+        try:
+            jobs = []
+            # Query Firestore for jobs where user_id matches
+            docs = self.collection.where("user_id", "==", user_id).stream()
+            for doc in docs:
+                try:
+                    job = MovieJob(**doc.to_dict())
+                    jobs.append(job)
+                except Exception as parse_err:
+                     logger.warning(f"Skipping invalid job doc {doc.id}: {parse_err}")
+            return jobs
+        except Exception as e:
+            logger.error(f"Failed to get user jobs from Firestore: {e}")
+            return []

@@ -1,10 +1,23 @@
 import axios from 'axios';
+import { auth } from '../firebase';
 
 const client = axios.create({
     baseURL: '/', // Proxy handles the rest
     headers: {
-        'Content-Type': 'multipart/form-data', // Default for file uploads, but axios handles it if data is FormData
+        'Content-Type': 'multipart/form-data', // Default for file uploads
     },
+});
+
+// Add a request interceptor to attach the Firebase ID token
+client.interceptors.request.use(async (config) => {
+    const user = auth.currentUser;
+    if (user) {
+        const token = await user.getIdToken();
+        config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+}, (error) => {
+    return Promise.reject(error);
 });
 
 const handleResponse = (response) => response.data;
@@ -28,21 +41,25 @@ export const api = {
     mergeImages: (formData) => client.post('/image/merge_images', formData).then(handleResponse),
     generateScenes: (formData) => client.post('/image/generate_scenes', formData).then(handleResponse),
     restoreImage: (formData) => client.post('/image/restore_old_image', formData).then(handleResponse),
+    getMyImages: (userId) => client.get(`/image/my_images/${userId}`).then(handleResponse),
 
     // Document Summarization
     documents: {
         summarize: (formData) => client.post('/summarize', formData).then(handleResponse),
-        getAnalytics: () => client.get('/api/documents/analytics').then(handleResponse),
+        getAnalytics: (userId) => client.get('/api/documents/analytics', { params: { user_id: userId } }).then(handleResponse),
     },
 
     // YouTube Transcript
     youtube: {
         getTranscript: (formData) => client.post('/transcript', formData).then(handleResponse),
-        getAnalytics: () => client.get('/api/youtube/analytics').then(handleResponse),
+        getAnalytics: (userId) => client.get('/api/youtube/analytics', { params: { user_id: userId } }).then(handleResponse),
     },
 
     // Chat
-    chat: (formData) => client.post('/chat', formData).then(handleResponse),
+    chat: {
+        sendMessage: (formData) => client.post('/chat', formData).then(handleResponse),
+        getAnalytics: (userId) => client.get('/api/chat/analytics', { params: { user_id: userId } }).then(handleResponse),
+    },
 
     // Health Checks
     checkImageHealth: () => client.get('/health/image').then(() => true).catch(() => false),
@@ -57,6 +74,10 @@ export const api = {
             headers: { 'Content-Type': 'application/json' }
         }).then(handleResponse),
         getMovieStatus: (jobId) => client.get(`/director/movie_status/${jobId}`).then(handleResponse),
+        getMyJobs: (userId) => client.get(`/director/my_jobs/${userId}`).then(handleResponse),
+        saveExternalJob: (job) => client.post('/director/save_external_job', job, {
+            headers: { 'Content-Type': 'application/json' }
+        }).then(handleResponse),
         approveScript: (jobId, scenes) => client.post(`/director/approve_script/${jobId}`, { scenes }, {
             headers: { 'Content-Type': 'application/json' }
         }).then(handleResponse),

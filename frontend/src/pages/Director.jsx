@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Clapperboard, Loader2, Play, Film, CheckCircle, AlertCircle, Download } from 'lucide-react';
 import { api } from '../api/client';
+import { useAuth } from '../contexts/AuthContext';
 
 const Director = () => {
+    const { currentUser } = useAuth();
     const [topic, setTopic] = useState('');
     const [duration, setDuration] = useState(60);
     const [model, setModel] = useState('veo-3.1-fast-generate-preview');
@@ -31,7 +33,8 @@ const Director = () => {
                 duration_seconds: parseInt(duration),
                 model,
                 resolution,
-                aspect_ratio: aspectRatio
+                aspect_ratio: aspectRatio,
+                user_id: currentUser ? currentUser.uid : null // Pass user_id
             });
             setJobId(response.job_id);
         } catch (err) {

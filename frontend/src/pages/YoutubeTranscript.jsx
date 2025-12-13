@@ -2,8 +2,10 @@ import React, { useState } from 'react';
 import { Youtube, Loader2, AlertCircle, FileText } from 'lucide-react';
 import { api } from '../api/client';
 import ReactMarkdown from 'react-markdown';
+import { useAuth } from '../contexts/AuthContext';
 
 const YoutubeTranscript = () => {
+    const { currentUser } = useAuth();
     const [url, setUrl] = useState('');
     const [selectedModel, setSelectedModel] = useState('gemini-2.5-flash');
     const [loading, setLoading] = useState(false);
@@ -21,6 +23,9 @@ const YoutubeTranscript = () => {
         const formData = new FormData();
         formData.append('url', url);
         formData.append('model', selectedModel);
+        if (currentUser) {
+            formData.append('user_id', currentUser.uid);
+        }
 
         try {
             const response = await api.youtube.getTranscript(formData);

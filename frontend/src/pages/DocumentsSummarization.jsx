@@ -2,8 +2,10 @@ import React, { useState, useRef } from 'react';
 import { Upload, FileText, Loader2, AlertCircle, FileType, X } from 'lucide-react';
 import { api } from '../api/client';
 import ReactMarkdown from 'react-markdown';
+import { useAuth } from '../contexts/AuthContext';
 
 const DocumentsSummarization = () => {
+    const { currentUser } = useAuth();
     const [files, setFiles] = useState([]);
     const [prompt, setPrompt] = useState('');
     const [selectedModel, setSelectedModel] = useState('gemini-2.5-flash');
@@ -62,6 +64,10 @@ const DocumentsSummarization = () => {
         }
 
         formData.append('model', selectedModel);
+
+        if (currentUser) {
+            formData.append('user_id', currentUser.uid);
+        }
 
         try {
             const response = await api.documents.summarize(formData);

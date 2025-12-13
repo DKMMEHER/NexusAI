@@ -5,11 +5,13 @@ from pydantic import BaseModel
 
 class MovieRequest(BaseModel):
     topic: str
+    user_id: Optional[str] = None # Added for user isolation
     style: Optional[str] = "Cinematic"
     duration_seconds: Optional[int] = 60
     model: Optional[str] = "veo-3.1-fast-generate-preview"
     resolution: Optional[str] = "1080p"
     aspect_ratio: Optional[str] = "16:9"
+    scenes: Optional[List[dict]] = None # Optional predefined scenes
 
 class VisualDetails(BaseModel):
     environment: str
@@ -36,6 +38,7 @@ class Voiceover(BaseModel):
     language: Optional[str] = ""
     script: Optional[str] = ""
     tone: Optional[str] = ""
+    lip_sync: Optional[str] = "DISABLED"
 
 class AudioDesign(BaseModel):
     music: Music
@@ -80,9 +83,11 @@ class Scene(BaseModel):
     status: str = "pending" # pending, generating, done, failed
     video_path: Optional[str] = None
     is_extension: bool = False
+    operation_name: Optional[str] = None
 
 class MovieJob(BaseModel):
     job_id: str
+    type: str = "director_movie" # director_movie, text_to_video, image_to_video, etc.
     topic: str
     status: str # starting, scripting, filming, stitching, completed, failed
     progress: int # 0-100
@@ -90,6 +95,7 @@ class MovieJob(BaseModel):
     final_video_path: Optional[str] = None
     error: Optional[str] = None
     created_at: str
+    user_id: Optional[str] = None # Linked to Auth Provider UID
     # Settings
     model: str
     resolution: str

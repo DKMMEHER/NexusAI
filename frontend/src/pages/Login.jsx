@@ -13,7 +13,7 @@ const Login = () => {
             setError('');
             setLoadingProvider('google');
             await loginWithGoogle();
-            navigate('/dashboard');
+            navigate('/');
         } catch (err) {
             console.error("Login failed:", err);
             setError(`Failed to sign in: ${err.message}`);
@@ -26,7 +26,7 @@ const Login = () => {
             setError('');
             setLoadingProvider('github');
             await loginWithGithub();
-            navigate('/dashboard');
+            navigate('/');
         } catch (err) {
             console.error("Login failed:", err);
             setError(`Failed to sign in: ${err.message}`);

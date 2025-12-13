@@ -168,7 +168,7 @@ const Layout = ({ children }) => {
                                 Document Tools
                             </div>
                             <NavItem to="/documents-summarization" icon={FileText} label="Summarization" />
-                            <NavItem to="/documents-stats" icon={Activity} label="Analytics" />
+
                         </>
                     ) : isPathActive(['/youtube-transcript', '/youtube-stats']) ? (
                         <>
@@ -179,7 +179,7 @@ const Layout = ({ children }) => {
                                 YouTube Tools
                             </div>
                             <NavItem to="/youtube-transcript" icon={Youtube} label="Transcript" />
-                            <NavItem to="/youtube-stats" icon={Activity} label="Analytics" />
+
                         </>
                     ) : isPathActive(['/chat', '/chat-stats']) ? (
                         <>
@@ -190,7 +190,7 @@ const Layout = ({ children }) => {
                                 Chat Tools
                             </div>
                             <NavItem to="/chat" icon={MessageSquare} label="Chat & Q&A" />
-                            <NavItem to="/chat-stats" icon={Activity} label="Analytics" />
+
                         </>
                     ) : (
                         <>

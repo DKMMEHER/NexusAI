@@ -148,7 +148,7 @@ const ImageStats = () => {
                                 imageJobs.slice(0, 10).map((job) => (
                                     <tr key={job.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                                         <td className="px-6 py-4 text-slate-500 dark:text-slate-400 font-mono text-xs">
-                                            {job.id.slice(-6)}
+                                            {job.id ? String(job.id).slice(-6) : 'N/A'}
                                         </td>
                                         <td className="px-6 py-4 text-slate-900 dark:text-white capitalize">{job.type}</td>
                                         <td className="px-6 py-4 text-slate-600 dark:text-slate-300 text-xs font-mono">

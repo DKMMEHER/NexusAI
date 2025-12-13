@@ -17,7 +17,7 @@ class StorageProvider(ABC):
         pass
 
 class LocalStorage(StorageProvider):
-    def __init__(self, base_dir: str = "Generated_Video", base_url: str = "http://127.0.0.1:8006/videos"):
+    def __init__(self, base_dir: str = "Generated_Videos", base_url: str = "http://127.0.0.1:8006/videos"):
         self.base_dir = os.path.abspath(base_dir)
         self.base_url = base_url
         os.makedirs(self.base_dir, exist_ok=True)
@@ -41,3 +41,24 @@ class LocalStorage(StorageProvider):
 
     def get_video_url(self, filename: str) -> str:
         return f"{self.base_url}/{filename}"
+
+class GoogleCloudStorage(StorageProvider):
+    def __init__(self, bucket_name: str):
+        from google.cloud import storage
+        self.bucket_name = bucket_name
+        self.client = storage.Client()
+        self.bucket = self.client.bucket(bucket_name)
+        logger.info(f"Initialized GoogleCloudStorage with bucket: {bucket_name}")
+
+    def save_video(self, source_path: str, filename: str) -> str:
+        blob = self.bucket.blob(f"videos/{filename}")
+        blob.upload_from_filename(source_path)
+        logger.info(f"Uploaded video to gs://{self.bucket_name}/videos/{filename}")
+        
+        # Determine the public URL (assuming public access or signed URL needed later)
+        # For now, returning the authenticated link or public link format
+        # If the bucket is public: https://storage.googleapis.com/{bucket}/{blob_name}
+        return f"https://storage.googleapis.com/{self.bucket_name}/videos/{filename}"
+
+    def get_video_url(self, filename: str) -> str:
+        return f"https://storage.googleapis.com/{self.bucket_name}/videos/{filename}"

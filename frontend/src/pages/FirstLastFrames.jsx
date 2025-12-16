@@ -4,6 +4,7 @@ import axios from 'axios';
 import JobCard from '../components/JobCard';
 import FileUploader from '../components/FileUploader';
 import AdvancedSettings from '../components/AdvancedSettings';
+import { useAuth } from '../contexts/AuthContext';
 import { useJobs } from '../contexts/JobsContext';
 import { toast } from 'sonner';
 import { api } from '../api/client';
@@ -14,6 +15,7 @@ const FirstLastFrames = () => {
     const [lastFrame, setLastFrame] = useState([]);
     const [loading, setLoading] = useState(false);
     const { jobs, addJob, updateJobStatus } = useJobs();
+    const { currentUser } = useAuth();
 
     // Filter only first_last jobs
     const firstLastJobs = jobs.filter(job => job.type === 'first_last');
@@ -52,6 +54,9 @@ const FirstLastFrames = () => {
             formData.append('prompt', prompt);
             formData.append('first_frame', firstFrame[0]);
             formData.append('last_frame', lastFrame[0]);
+            if (currentUser) {
+                formData.append('user_id', currentUser.uid);
+            }
             Object.keys(settings).forEach(key => formData.append(key, settings[key]));
 
             const response = await api.firstLastFrames(formData);

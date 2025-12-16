@@ -11,7 +11,8 @@ if (-not (Test-Path $EnvPath)) {
         Write-Host "Found .env in parent directory. Copying to project root..." -ForegroundColor Cyan
         Copy-Item $ParentEnvPath $EnvPath
         Write-Host "Success: Copied .env file." -ForegroundColor Green
-    } else {
+    }
+    else {
         Write-Error "CRITICAL: Could not find .env file in project or parent directory!"
         Write-Error "Please create a .env file with GEMINI_API_KEY."
         exit 1

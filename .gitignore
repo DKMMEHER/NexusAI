@@ -62,3 +62,7 @@ scenery_prompts.txt
 # OS Generated
 .DS_Store
 Thumbs.db
+
+
+# Tests
+test_*.py

@@ -5,6 +5,7 @@ import axios from 'axios';
 import JobCard from '../components/JobCard';
 import FileUploader from '../components/FileUploader';
 import AdvancedSettings from '../components/AdvancedSettings';
+import { useAuth } from '../contexts/AuthContext';
 import { useJobs } from '../contexts/JobsContext';
 import { toast } from 'sonner';
 import { api } from '../api/client';
@@ -14,6 +15,7 @@ const ExtendVideo = () => {
     const [files, setFiles] = useState([]);
     const [loading, setLoading] = useState(false);
     const { jobs, addJob, updateJobStatus } = useJobs();
+    const { currentUser } = useAuth(); // Get current user
     const [searchParams, setSearchParams] = useSearchParams();
     const jobId = searchParams.get('jobId');
     const [selectedJob, setSelectedJob] = useState(null);
@@ -91,6 +93,10 @@ const ExtendVideo = () => {
                 formData.append('previous_operation_name', opName);
             } else {
                 formData.append('base_video', files[0]);
+            }
+
+            if (currentUser) {
+                formData.append('user_id', currentUser.uid); // Pass user_id
             }
 
             Object.keys(settings).forEach(key => formData.append(key, settings[key]));

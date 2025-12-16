@@ -29,13 +29,29 @@ export const JobsProvider = ({ children }) => {
                 api.getMyImages(currentUser.uid).catch(err => {
                     console.error("Failed to fetch image jobs:", err);
                     return [];
+                }),
+                // New: Fetch Video Generation jobs directly
+                api.video.getMyJobs(currentUser.uid).catch(err => {
+                    console.error("Failed to fetch video jobs:", err);
+                    return [];
                 })
-            ]).then(([directorJobs, imageJobs]) => {
+            ]).then(([directorJobs, imageJobs, videoJobs]) => {
                 // Ensure arrays
                 const dJobs = Array.isArray(directorJobs) ? directorJobs : [];
                 const iJobs = Array.isArray(imageJobs) ? imageJobs : [];
+                const vJobs = Array.isArray(videoJobs) ? videoJobs : [];
 
-                const combined = [...dJobs, ...iJobs];
+                // Filter out director jobs from videoJobs if they are duplicates (Director saves some external jobs)
+                // Actually, Director saves "external" jobs, so we might have duplicates if we pull from both.
+                // Strategy: Prefer Director's view for "director_movie" types, but keep others from VideoBackend?
+                // Or simply dedup by ID.
+
+                const allJobs = [...dJobs, ...iJobs, ...vJobs];
+
+                // Deduplicate by ID
+                const uniqueJobs = Array.from(new Map(allJobs.map(job => [job.id || job.job_id, job])).values());
+
+                const combined = uniqueJobs;
 
                 // Sort by timestamp (newest first)
                 const sorted = combined.sort((a, b) => {

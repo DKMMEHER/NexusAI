@@ -17,6 +17,9 @@ class ImageJob(BaseModel):
     timestamp: str
     model: str
     status: str = "completed"
+    rpm: int = 0
+    tpm: int = 0
+    rpd: int = 0
 
 class DatabaseProvider(ABC):
     @abstractmethod

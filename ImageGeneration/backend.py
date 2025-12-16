@@ -10,7 +10,7 @@ import random
 from typing import List, Optional
 from datetime import datetime
 from fastapi import FastAPI, APIRouter, UploadFile, File, Form, HTTPException, Depends
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import JSONResponse, FileResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.security import HTTPAuthorizationCredentials
@@ -118,7 +118,7 @@ def call_nano_banana(api_key: str, prompt: str, images: List[dict] = None, model
         
         if res.status_code == 429:
             if attempt == retries:
-                return None, None, "Quota exceeded. Please try again later.", res.status_code
+                return None, None, "Quota exceeded. Please try again later.", res.status_code, 0
             sleep_for = backoff ** attempt
             time.sleep(sleep_for)
             attempt += 1
@@ -132,28 +132,33 @@ def call_nano_banana(api_key: str, prompt: str, images: List[dict] = None, model
                     status = error_data["error"].get("status", "UNKNOWN")
                     
                     if status == "INTERNAL" or "internal error" in error_msg.lower():
-                        return None, None, "The AI service is temporarily unavailable. Please try again in a moment.", 500
+                        return None, None, "The AI service is temporarily unavailable. Please try again in a moment.", 500, 0
                     if "safety" in error_msg.lower():
-                        return None, None, "The request was blocked by safety filters. Please modify your prompt.", 400
-                    return None, None, f"AI Error: {error_msg}", res.status_code
+                        return None, None, "The request was blocked by safety filters. Please modify your prompt.", 400, 0
+                    return None, None, f"AI Error: {error_msg}", res.status_code, 0
             except Exception:
                 pass
-            return None, None, f"Error {res.status_code}: {res.text}", res.status_code
+            return None, None, f"Error {res.status_code}: {res.text}", res.status_code, 0
 
         data = res.json()
         parts_out = data.get('candidates', [{}])[0].get('content', {}).get('parts', [])
+        
+        # Extract Token Usage
+        usage = data.get('usageMetadata', {})
+        total_tokens = usage.get('totalTokenCount', 0)
+        
         for p in parts_out:
             if 'inlineData' in p:
-                return p['inlineData']['data'], p['inlineData'].get('mimeType', 'image/png'), None, 200
+                return p['inlineData']['data'], p['inlineData'].get('mimeType', 'image/png'), None, 200, total_tokens
         
         logger.error(f"No image returned. Full response: {data}")
         candidate = data.get('candidates', [{}])[0]
         finish_reason = candidate.get('finishReason')
         if finish_reason == "SAFETY":
-             return None, None, "The image generation was blocked by safety settings. Please try a different prompt.", 400
+             return None, None, "The image generation was blocked by safety settings. Please try a different prompt.", 400, 0
              
-        return None, None, "No image returned. The model might have refused the request.", 500
-    return None, None, "Exhausted retries", 500
+        return None, None, "No image returned. The model might have refused the request.", 500, 0
+    return None, None, "Exhausted retries", 500, 0
 
 # === FastAPI App Setup ===
 app = FastAPI()
@@ -206,7 +211,7 @@ def generate_image(
             
         system_prompt = random.choice(PROMPTS["generate_image"])
         full_prompt = f"{system_prompt} {prompt}"
-        img_b64, mime, error, status = call_nano_banana(final_key, full_prompt, model=model, grounding=grounding, aspect_ratio=aspect_ratio)
+        img_b64, mime, error, status, tokens = call_nano_banana(final_key, full_prompt, model=model, grounding=grounding, aspect_ratio=aspect_ratio)
         
         if img_b64:
             # Persistence Logic
@@ -225,7 +230,10 @@ def generate_image(
                             prompt=prompt,
                             image_path=web_path,
                             timestamp=datetime.now().isoformat(),
-                            model=model
+                            model=model,
+                            rpm=1,
+                            tpm=tokens,
+                            rpd=1
                         )
                         db.save_job(job)
             except Exception as e:
@@ -258,7 +266,7 @@ def edit_image(
     img_data, mime = b64encode_file(file)
     system_prompt = random.choice(PROMPTS["edit_image"])
     full_prompt = f"{system_prompt} {prompt}"
-    img_b64, out_mime, error, status = call_nano_banana(final_key, full_prompt, images=[{'data': img_data, 'mime': mime}], model=model, grounding=grounding)
+    img_b64, out_mime, error, status, tokens = call_nano_banana(final_key, full_prompt, images=[{'data': img_data, 'mime': mime}], model=model, grounding=grounding)
     
     if img_b64:
         if user_id and user_id != "undefined":
@@ -272,7 +280,10 @@ def edit_image(
                     prompt=prompt,
                     image_path=web_path,
                     timestamp=datetime.now().isoformat(),
-                    model=model
+                    model=model,
+                    rpm=1,
+                    tpm=tokens,
+                    rpd=1
                 )
                 db.save_job(job)
         return JSONResponse({"image": img_b64, "mime": out_mime})
@@ -301,7 +312,7 @@ def virtual_try_on(
     full_prompt = system_prompt
     if prompt:
         full_prompt += " " + prompt
-    img_b64, out_mime, error, status = call_nano_banana(final_key, full_prompt, images=images, model=model, grounding=grounding)
+    img_b64, out_mime, error, status, tokens = call_nano_banana(final_key, full_prompt, images=images, model=model, grounding=grounding)
     
     if img_b64:
         # Persistence Logic
@@ -318,7 +329,10 @@ def virtual_try_on(
                         prompt=prompt or "Virtual Try-On",
                         image_path=web_path,
                         timestamp=datetime.now().isoformat(),
-                        model=model
+                        model=model,
+                        rpm=1,
+                        tpm=tokens,
+                        rpd=1
                     )
                     db.save_job(job)
         except Exception as e:
@@ -365,7 +379,7 @@ def create_ads(
         full_prompt = f"{system_prompt} Variation {i+1}: {hint}.".strip()
         if prompt:
             full_prompt += f" User: {prompt.strip()}"
-        img_b64, out_mime, error, status = call_nano_banana(final_key, full_prompt, images=images, model=model, grounding=grounding)
+        img_b64, out_mime, error, status, tokens = call_nano_banana(final_key, full_prompt, images=images, model=model, grounding=grounding)
         if img_b64:
             # Persistence Logic
             try:
@@ -381,7 +395,10 @@ def create_ads(
                             prompt=full_prompt,
                             image_path=web_path,
                             timestamp=datetime.now().isoformat(),
-                            model=model
+                            model=model,
+                            rpm=1,
+                            tpm=tokens,
+                            rpd=1
                         )
                         db.save_job(job)
             except Exception as e:
@@ -419,7 +436,7 @@ def merge_images(
     full_prompt = system_prompt
     if prompt:
         full_prompt += " " + prompt
-    img_b64, out_mime, error, status = call_nano_banana(final_key, full_prompt, images=images, model=model, grounding=grounding)
+    img_b64, out_mime, error, status, tokens = call_nano_banana(final_key, full_prompt, images=images, model=model, grounding=grounding)
     if img_b64:
         # Persistence Logic
         try:
@@ -435,7 +452,10 @@ def merge_images(
                         prompt=prompt or "Merge Images",
                         image_path=web_path,
                         timestamp=datetime.now().isoformat(),
-                        model=model
+                        model=model,
+                        rpm=1,
+                        tpm=tokens,
+                        rpd=1
                     )
                     db.save_job(job)
         except Exception as e:
@@ -474,7 +494,7 @@ def generate_scenes(
         full_prompt = f"{system_prompt} Variation {i+1}: {hint}.".strip()
         if prompt:
             full_prompt += f" User: {prompt.strip()}"
-        img_b64, out_mime, error, status = call_nano_banana(final_key, full_prompt, images=[{'data': data, 'mime': mime}], model=model, grounding=grounding)
+        img_b64, out_mime, error, status, tokens = call_nano_banana(final_key, full_prompt, images=[{'data': data, 'mime': mime}], model=model, grounding=grounding)
         if img_b64:
             # Persistence Logic
             try:
@@ -490,7 +510,10 @@ def generate_scenes(
                             prompt=full_prompt,
                             image_path=web_path,
                             timestamp=datetime.now().isoformat(),
-                            model=model
+                            model=model,
+                            rpm=1,
+                            tpm=tokens,
+                            rpd=1
                         )
                         db.save_job(job)
             except Exception as e:
@@ -520,7 +543,7 @@ def restore_old_image(
     full_prompt = system_prompt
     if prompt:
         full_prompt += " " + prompt
-    img_b64, out_mime, error, status = call_nano_banana(final_key, full_prompt, images=[{'data': img_data, 'mime': mime}], model=model, grounding=grounding)
+    img_b64, out_mime, error, status, tokens = call_nano_banana(final_key, full_prompt, images=[{'data': img_data, 'mime': mime}], model=model, grounding=grounding)
     if img_b64:
         # Persistence Logic
         try:
@@ -536,7 +559,10 @@ def restore_old_image(
                         prompt=prompt or "Restore Image",
                         image_path=web_path,
                         timestamp=datetime.now().isoformat(),
-                        model=model
+                        model=model,
+                        rpm=1,
+                        tpm=tokens,
+                        rpd=1
                     )
                     db.save_job(job)
         except Exception as e:
@@ -545,9 +571,37 @@ def restore_old_image(
         return JSONResponse({"image": img_b64, "mime": out_mime})
     return JSONResponse({"detail": error}, status_code=status)
 
+@router.get("/gcs/{filename}")
+def serve_gcs_image(filename: str):
+    """Proxies images from GCS to the frontend (authenticated via session ideally, or public if needed)."""
+    # Check if we are using GCS
+    if not isinstance(storage, GoogleCloudStorage):
+        raise HTTPException(status_code=400, detail="GCS storage not configured")
+
+    try:
+        blob = storage.bucket.blob(f"images/{filename}")
+        if not blob.exists():
+            raise HTTPException(status_code=404, detail="Image not found in GCS")
+            
+        # Download as bytes to memory (usually small images)
+        # For larger files, use StreamingResponse with blob.download_as_bytes() or similar
+        content = blob.download_as_bytes()
+        return Response(content=content, media_type="image/png")
+    except Exception as e:
+         logger.error(f"GCS Proxy Error: {e}")
+         raise HTTPException(status_code=500, detail="Failed to retrieve image")
+
 # Include the router with prefix /image to match frontend proxy
 app.include_router(router, prefix="/image")
 
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+@app.get("/health")
+async def health_check():
+    return {"status": "ok", "service": "ImageGeneration"}
+
+@app.get("/image/health")
+async def health_check_alias():
+    return {"status": "ok", "service": "ImageGeneration"}

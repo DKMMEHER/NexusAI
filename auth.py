@@ -21,9 +21,16 @@ def initialize_firebase():
             if os.path.exists(cred_path):
                 cred = credentials.Certificate(cred_path)
                 firebase_admin.initialize_app(cred)
-                logger.info("Firebase Admin SDK initialized successfully.")
+                logger.info(f"Firebase Admin SDK initialized successfully with {cred_path}.")
             else:
-                logger.warning(f"firebase-admin credentials not found at {cred_path}. Auth verification will fail or be mocked.")
+                logger.info(f"{cred_path} not found. Attempting Application Default Credentials...")
+                try:
+                    # Initialize default app (uses ADC: GOOGLE_CLOUD_PROJECT env var)
+                    firebase_admin.initialize_app()
+                    logger.info("Firebase Admin SDK initialized successfully with ADC.")
+                except Exception as e:
+                    logger.error(f"Failed to initialize Firebase Admin with ADC: {e}")
+                    # Only now do not block startup, but auth will fail.
     except Exception as e:
         logger.error(f"Failed to initialize Firebase Admin SDK: {e}")
 

@@ -4,6 +4,7 @@ import axios from 'axios';
 import JobCard from '../components/JobCard';
 import AdvancedSettings from '../components/AdvancedSettings';
 import PromptPresets from '../components/PromptPresets';
+import { useAuth } from '../contexts/AuthContext';
 import { useJobs } from '../contexts/JobsContext';
 import { toast } from 'sonner';
 import { api } from '../api/client';
@@ -12,6 +13,7 @@ const TextToVideo = () => {
     const [prompt, setPrompt] = useState('');
     const [loading, setLoading] = useState(false);
     const { jobs, addJob, updateJobStatus } = useJobs();
+    const { currentUser } = useAuth(); // Get current user
 
     // Filter only text_to_video jobs for this view
     const textToVideoJobs = jobs.filter(job => job.type === 'text_to_video');
@@ -48,6 +50,9 @@ const TextToVideo = () => {
         try {
             const formData = new FormData();
             formData.append('prompt', prompt);
+            if (currentUser) {
+                formData.append('user_id', currentUser.uid); // Pass user_id
+            }
             Object.keys(settings).forEach(key => formData.append(key, settings[key]));
 
             const response = await api.textToVideo(formData);

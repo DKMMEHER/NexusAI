@@ -105,7 +105,13 @@ const ImageGallery = () => {
                         const displayImages = job.result?.images
                             ? job.result.images.map(img => ({ type: 'base64', src: `data:${img.mime};base64,${img.image}`, data: img.image, mime: img.mime }))
                             : job.image_path
-                                ? [{ type: 'url', src: job.image_path, mime: 'image/png' }]
+                                ? [{
+                                    type: 'url',
+                                    src: job.image_path.includes('storage.googleapis.com')
+                                        ? `/image/gcs/${job.image_path.split('/').pop()}`
+                                        : job.image_path,
+                                    mime: 'image/png'
+                                }]
                                 : [];
 
                         return displayImages.map((img, imgIdx) => (

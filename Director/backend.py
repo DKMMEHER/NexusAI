@@ -622,8 +622,12 @@ async def save_external_job(job: MovieJob):
     return {"status": "saved"}
 
 @app.get("/")
-def health_check():
+def health_check_root():
     return {"status": "Director Service Running"}
+
+@app.get("/health")
+def health_check():
+    return {"status": "healthy"}
 
 if __name__ == "__main__":
     import uvicorn

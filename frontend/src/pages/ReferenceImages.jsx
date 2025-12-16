@@ -4,6 +4,7 @@ import axios from 'axios';
 import JobCard from '../components/JobCard';
 import FileUploader from '../components/FileUploader';
 import AdvancedSettings from '../components/AdvancedSettings';
+import { useAuth } from '../contexts/AuthContext';
 import { useJobs } from '../contexts/JobsContext';
 import { toast } from 'sonner';
 import { api } from '../api/client';
@@ -13,6 +14,7 @@ const ReferenceImages = () => {
     const [files, setFiles] = useState([]);
     const [loading, setLoading] = useState(false);
     const { jobs, addJob, updateJobStatus } = useJobs();
+    const { currentUser } = useAuth();
 
     // Filter only reference_images jobs
     const referenceJobs = jobs.filter(job => job.type === 'reference_images');
@@ -52,6 +54,9 @@ const ReferenceImages = () => {
             files.forEach(file => {
                 formData.append('images', file); // Backend expects 'images'
             });
+            if (currentUser) {
+                formData.append('user_id', currentUser.uid);
+            }
             Object.keys(settings).forEach(key => formData.append(key, settings[key]));
 
             const response = await api.referenceImages(formData);

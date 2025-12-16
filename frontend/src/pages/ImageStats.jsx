@@ -16,6 +16,13 @@ const StatCard = ({ title, value, icon: Icon, color, bg }) => (
     </div>
 );
 
+const MODEL_LIMITS = {
+    'gemini-2.5-flash-image': { rpm: 15, tpm: '1M', rpd: 1500 },
+    'gemini-3-pro': { rpm: 2, tpm: '32k', rpd: 50 },
+    'veo-3.1-generate-preview': { rpm: 2, tpm: '-', rpd: 50 },
+    'default': { rpm: '-', tpm: '-', rpd: '-' }
+};
+
 const ImageStats = () => {
     const { jobs } = useJobs();
     const [timeRange, setTimeRange] = React.useState('all');
@@ -41,7 +48,7 @@ const ImageStats = () => {
 
     // Filter only image generation jobs
     const imageJobsRaw = jobs.filter(j =>
-        ['generate', 'edit', 'tryon', 'ads', 'merge', 'scenes', 'restore'].includes(j.type)
+        ['generate', 'edit', 'try_on', 'create_ads', 'merge', 'scenes', 'restore', 'virtual_try_on'].includes(j.type)
     );
 
     const imageJobs = imageJobsRaw.filter(filterByTimeRange);
@@ -50,12 +57,12 @@ const ImageStats = () => {
         total: imageJobs.length,
         completed: imageJobs.filter(j => j.status === 'completed').length,
         failed: imageJobs.filter(j => j.status === 'failed').length,
-        totalImages: imageJobs.reduce((acc, job) => acc + (job.result?.images?.length || 0), 0)
+        totalImages: imageJobs.reduce((acc, job) => acc + (job.result?.images?.length || 1), 0)
     };
 
     // Calculate Model Usage
     const modelUsage = imageJobs.reduce((acc, job) => {
-        const model = job.settings?.model || 'Unknown';
+        const model = job.model || job.settings?.model || 'Unknown';
         acc[model] = (acc[model] || 0) + 1;
         return acc;
     }, {});
@@ -145,31 +152,41 @@ const ImageStats = () => {
                                     </td>
                                 </tr>
                             ) : (
-                                imageJobs.slice(0, 10).map((job) => (
-                                    <tr key={job.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                                        <td className="px-6 py-4 text-slate-500 dark:text-slate-400 font-mono text-xs">
-                                            {job.id ? String(job.id).slice(-6) : 'N/A'}
-                                        </td>
-                                        <td className="px-6 py-4 text-slate-900 dark:text-white capitalize">{job.type}</td>
-                                        <td className="px-6 py-4 text-slate-600 dark:text-slate-300 text-xs font-mono">
-                                            {job.settings?.model || 'N/A'}
-                                        </td>
-                                        <td className="px-6 py-4 text-slate-500 dark:text-slate-400">-</td>
-                                        <td className="px-6 py-4 text-slate-500 dark:text-slate-400">-</td>
-                                        <td className="px-6 py-4 text-slate-500 dark:text-slate-400">-</td>
-                                        <td className="px-6 py-4">
-                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                                imageJobs.slice(0, 10).map((job) => {
+                                    const modelName = job.model || job.settings?.model || 'default';
+                                    const limits = MODEL_LIMITS[modelName] || MODEL_LIMITS['default'];
+
+                                    return (
+                                        <tr key={job.job_id || job.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                                            <td className="px-6 py-4 text-slate-500 dark:text-slate-400 font-mono text-xs">
+                                                {/* Fix Job ID Access */}
+                                                {(job.job_id || job.id || 'N/A').slice(-6)}
+                                            </td>
+                                            <td className="px-6 py-4 text-slate-900 dark:text-white capitalize">
+                                                {job.type.replace(/_/g, ' ')}
+                                            </td>
+                                            <td className="px-6 py-4 text-slate-600 dark:text-slate-300 text-xs font-mono">
+                                                {modelName.replace('gemini-', '')}
+                                            </td>
+                                            <td className="px-6 py-4 text-slate-500 dark:text-slate-400 text-xs">{job.rpm !== undefined ? job.rpm : limits.rpm}</td>
+                                            <td className="px-6 py-4 text-slate-500 dark:text-slate-400 text-xs">{job.tpm !== undefined ? job.tpm : limits.tpm}</td>
+                                            <td className="px-6 py-4 text-slate-500 dark:text-slate-400 text-xs">{job.rpd !== undefined ? job.rpd : limits.rpd}</td>
+                                            <td className="px-6 py-4">
+                                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
                                                 ${job.status === 'completed' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400' :
-                                                    job.status === 'failed' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' :
-                                                        'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400'}`}>
-                                                {job.status}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 text-slate-500 dark:text-slate-400 text-xs">
-                                            {new Date(job.timestamp).toLocaleString()}
-                                        </td>
-                                    </tr>
-                                ))
+                                                        job.status === 'failed' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' :
+                                                            'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400'}`}>
+                                                    {job.status}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 text-slate-500 dark:text-slate-400 text-xs">
+                                                {new Date(job.timestamp).toLocaleString(undefined, {
+                                                    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                                                })}
+                                            </td>
+                                        </tr>
+                                    )
+                                })
                             )}
                         </tbody>
                     </table>

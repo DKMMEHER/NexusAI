@@ -24,6 +24,9 @@ const handleResponse = (response) => response.data;
 
 export const api = {
     // Video Generation
+    video: {
+        getMyJobs: (userId) => client.get(`/video/my_jobs/${userId}`).then(handleResponse),
+    },
     textToVideo: (formData) => client.post('/text_to_video', formData).then(handleResponse),
     imageToVideo: (formData) => client.post('/image_to_video', formData).then(handleResponse),
     referenceImages: (formData) => client.post('/video_from_reference_images', formData).then(handleResponse),

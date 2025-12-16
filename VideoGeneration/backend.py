@@ -51,11 +51,7 @@ app.mount("/Generated_Videos", StaticFiles(directory="Generated_Videos"), name="
 # Allow Streamlit (port 8501)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8501", "http://127.0.0.1:8501", 
-                   "http://localhost:5173", "http://127.0.0.1:5173", 
-                   "http://localhost:5174", "http://127.0.0.1:5174",
-                   "http://localhost:8080", "http://127.0.0.1:8080",
-                   "https://nexusai-962267416185.asia-south1.run.app"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -85,8 +81,9 @@ if is_cloud_run and project_id:
     try:
         db = FirestoreDatabase(project_id)
     except Exception as e:
-        logger.error(f"Failed to initialize Firestore: {e}. Falling back to JsonDatabase (Ephemeral!).")
-        db = JsonDatabase()
+        logger.error(f"Failed to initialize Firestore: {e}. CRITICAL FAILURE.")
+        # Do NOT fall back to JsonDatabase in Cloud Run, it causes data loss.
+        raise e
     
     # Cloud Storage Initialization
     bucket_name = os.getenv("GCS_BUCKET_NAME", "nexus-ai-media")
@@ -138,6 +135,8 @@ async def text_to_video_endpoint(
                 operation_name=operation_name,
                 duration=duration_seconds,
                 resolution=resolution,
+                aspect_ratio=aspect_ratio
+            )
                 aspect_ratio=aspect_ratio
             )
             db.save_job(job)
@@ -401,16 +400,7 @@ def status(operation_name: str):
         status_payload = get_operation_status(operation_name)
         
         # Persistence Logic: If done, ensure we have it saved
-        # FIX: Check 'done' boolean, not 'state' string
         if status_payload.get("done") is True:
-            # Check DB to avoid re-saving
-            # We assume operation_name is unique enough or we search by it
-            # Ideally we filtered by pending status in DB? 
-            # For simplicity, we just check if we can update a job with this Op Name
-            
-            # Since we don't have a direct "get_job_by_operation" in abstraction (simple one),
-            # we can try to fetch all user jobs or just proceed to save if status is done.
-            # A more robust way:
             try:
                 # 1. Download bytes
                 logger.info(f"Attempting to download bytes for operation: {operation_name}")
@@ -419,39 +409,28 @@ def status(operation_name: str):
                 if data:
                      logger.info(f"Downloaded {len(data)} bytes. Saving to storage...")
                      # 2. Save to Storage (Storage checks existence too)
-                     # Using operation name as basis for filename to be consistent
                      safe_name = operation_name.replace("/", "_") + ".mp4"
                      final_path = storage.save_video(data, safe_name)
                      logger.info(f"Video saved to: {final_path}")
                      
                      # 3. Update DB
-                     # We need to find the job. Since we don't have job_id here easily without querying...
-                     # We can query Firestore/JSON by operation_name.
-                     # For MVP: We iterates recent jobs or assume "Pending" jobs.
-                     # Since this is "status" polling, we might not have user_id here easily.
-                     # But we can update if we find a matching job in "pending" state.
+                     logger.info(f"Updating job status for operation: {operation_name}")
+                     job = db.get_job_by_operation(operation_name)
                      
-                     # Simple scan for now (inefficient for large DBs but fine for MVP)
-                     # We'll rely on the fact that we saved the operation_name.
-                     logger.info("Scanning for pending job to update...")
-                     all_jobs = db.get_user_jobs(None) # Get all jobs (impl dependent)
-                     logger.info(f"Found {len(all_jobs)} total jobs.")
-                     
-                     found_job = False
-                     for job_dict in all_jobs:
-                         if job_dict.get("operation_name") == operation_name:
-                             logger.info(f"Found matching job {job_dict.get('job_id')} with status {job_dict.get('status')}")
-                             if job_dict.get("status") == "pending":
-                                 job = VideoJob(**job_dict)
-                                 job.status = "completed"
-                                 job.video_path = final_path
-                                 job.progress = 100
-                                 db.save_job(job)
-                                 logger.info(f"Updated job {job.job_id} to completed with path {final_path}")
-                                 found_job = True
-                                 break
-                     if not found_job:
-                         logger.warning(f"No pending job found for operation {operation_name}")
+                     if job:
+                         if job.status != "completed":
+                             job.status = "completed"
+                             job.video_path = final_path
+                             job.progress = 100
+                             db.save_job(job)
+                             logger.info(f"Updated job {job.job_id} to completed with path {final_path}")
+                         else:
+                             # Should we update anyway? Maybe path changed?
+                             # For now, just log.
+                             logger.info(f"Job {job.job_id} already completed.")
+                     else:
+                         logger.warning(f"No job found for operation {operation_name}")
+
                 else:
                     logger.error("Download failed: No data returned.")
 
@@ -509,6 +488,10 @@ def download(operation_name: str):
     return StreamingResponse(io.BytesIO(data), media_type="video/mp4",
                              headers={"Content-Disposition": f'attachment; filename="{filename}"'})
 
+@app.get("/my_jobs/{user_id}")
+def get_my_jobs(user_id: str):
+    return db.get_user_jobs(user_id)
+
 @app.get("/save_local/{operation_name:path}")
 def save_local(operation_name: str):
     try:
@@ -533,3 +516,7 @@ def save_local(operation_name: str):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("backend:app", host="127.0.0.1", port=8002, reload=True)
+
+@app.get("/health")
+async def health_check():
+    return {"status": "ok", "service": "VideoGeneration"}

@@ -25,12 +25,7 @@ def health_check():
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8501", "http://127.0.0.1:8501",
-                   "http://localhost:5173", "http://127.0.0.1:5173",
-                   "http://localhost:5174", "http://127.0.0.1:5174",
-                   "http://localhost:8080", "http://127.0.0.1:8080",
-                   "https://nexusai-962267416185.asia-south1.run.app",
-                   "*"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -52,8 +47,15 @@ def extract_transcript_details(youtube_video_url):
         else:
             raise ValueError("Invalid YouTube URL format")
 
-        # Use instance method fetch() as per installed version
-        transcript_text_list = YouTubeTranscriptApi().fetch(video_id)
+        # Configure Proxy if available
+        proxies = None
+        proxy_url = os.getenv("YOUTUBE_PROXY")
+        if proxy_url:
+            proxies = {"http": proxy_url, "https": proxy_url}
+            logger.info(f"Using YouTube Proxy: {proxy_url}")
+
+        # Use static method get_transcript which supports proxies
+        transcript_text_list = YouTubeTranscriptApi.get_transcript(video_id, proxies=proxies)
 
         transcript = ""
         for i in transcript_text_list:

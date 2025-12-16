@@ -45,8 +45,8 @@ class GoogleCloudStorage(StorageProvider):
             blob.upload_from_string(image_data, content_type="image/png")
             logger.info(f"Uploaded image to gs://{self.bucket_name}/images/{filename}")
             
-            # Return Public/Authenticated URL
-            return f"https://storage.googleapis.com/{self.bucket_name}/images/{filename}"
+            # Return Proxy URL (Relative path handled by frontend/networking)
+            return f"/image/gcs/{filename}"
         except Exception as e:
             logger.error(f"Failed to upload image to GCS: {e}")
             return ""

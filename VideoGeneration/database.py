@@ -17,9 +17,9 @@ class DatabaseProvider(ABC):
         pass
 
     @abstractmethod
-    def get_job(self, job_id: str) -> Optional[VideoJob]:
+    def get_job_by_operation(self, operation_name: str) -> Optional[VideoJob]:
         pass
-        
+
     @abstractmethod
     def get_user_jobs(self, user_id: str) -> List[Dict[str, Any]]:
         pass
@@ -61,6 +61,13 @@ class JsonDatabase(DatabaseProvider):
             return VideoJob(**job_data)
         return None
 
+    def get_job_by_operation(self, operation_name: str) -> Optional[VideoJob]:
+        self.jobs = self._load_db()
+        job_data = next((j for j in self.jobs if j.get("operation_name") == operation_name), None)
+        if job_data:
+            return VideoJob(**job_data)
+        return None
+
     def get_user_jobs(self, user_id: str) -> List[Dict[str, Any]]:
         self.jobs = self._load_db()
         if not user_id:
@@ -83,6 +90,13 @@ class FirestoreDatabase(DatabaseProvider):
         doc_ref = self.collection_ref.document(job_id)
         doc = doc_ref.get()
         if doc.exists:
+            return VideoJob(**doc.to_dict())
+        return None
+
+    def get_job_by_operation(self, operation_name: str) -> Optional[VideoJob]:
+        query = self.collection_ref.where("operation_name", "==", operation_name).limit(1)
+        docs = query.stream()
+        for doc in docs:
             return VideoJob(**doc.to_dict())
         return None
 

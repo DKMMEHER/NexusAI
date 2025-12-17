@@ -2,8 +2,6 @@ fastapi
 uvicorn[standard]
 python-dotenv
 requests
-botocore
-plotly
 python-multipart
 pydantic
 httpx
@@ -11,12 +9,9 @@ python-docx
 openpyxl
 python-pptx
 beautifulsoup4
-bs4
 youtube_transcript_api
-streamlit
 google-genai
 google-generativeai
-pathlib
 google-cloud-storage
 google-cloud-firestore
 firebase-admin

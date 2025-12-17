@@ -137,8 +137,7 @@ async def text_to_video_endpoint(
                 resolution=resolution,
                 aspect_ratio=aspect_ratio
             )
-                aspect_ratio=aspect_ratio
-            )
+
             db.save_job(job)
             
         print(f"DEBUG: text_to_video success, returning: {result}")

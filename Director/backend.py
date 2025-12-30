@@ -100,11 +100,16 @@ async def generate_script(job_id: str, topic: str, duration_seconds: int, resolu
     try:
         model = genai.GenerativeModel("gemini-3-pro-preview")
         
+        # Initialize duration variables with defaults
+        duration_instruction = "Each scene MUST be exactly 8 seconds long."
+        scene_duration_placeholder = "8"
+        
         # Duration logic
         if resolution == "720p":
             duration_instruction = "For each scene, you MUST decide the duration. Choose either 4 or 8 seconds based on the pacing."
             scene_duration_placeholder = "4 or 8"
-            # 1080p usually requires fixed 8s for now (or whatever the constraint is)
+        else:
+            # 1080p and other resolutions require fixed 8s for now
             duration_instruction = "Each scene MUST be exactly 8 seconds long."
             scene_duration_placeholder = "8"
 
@@ -544,7 +549,17 @@ async def create_movie(
     # Logic for pre-defined scenes (e.g. from UI edit or retake)
     if request.scenes:
         updated_scenes = []
-        for s in request.scenes:
+        for scene_data in request.scenes:
+            # Convert dict to Scene object if needed
+            if isinstance(scene_data, dict):
+                s = Scene(**scene_data)
+            else:
+                s = scene_data
+            
+            # Ensure prompt is a ScenePrompt object
+            if isinstance(s.prompt, dict):
+                s.prompt = ScenePrompt(**s.prompt)
+                
             p = s.prompt
             # Reconstruct visual prompt if needed
             veo_prompt = (

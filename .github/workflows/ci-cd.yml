@@ -9,7 +9,7 @@ on:
 env:
   PYTHON_VERSION: '3.13'
   PROJECT_ID: ${{ secrets.GOOGLE_CLOUD_PROJECT }}
-  REGION: us-central1
+  REGION: asia-south1
 
 jobs:
   # Job 1: Run Tests

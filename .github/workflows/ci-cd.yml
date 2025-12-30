@@ -161,17 +161,17 @@ jobs:
       matrix:
         service:
           - name: ImageGeneration
-            port: 8001
+            port: 8080
           - name: Chat
-            port: 8005
+            port: 8080
           - name: Director
-            port: 8006
+            port: 8080
           - name: VideoGeneration
-            port: 8002
+            port: 8080
           - name: DocumentsSummarization
-            port: 8003
+            port: 8080
           - name: YoutubeTranscript
-            port: 8004
+            port: 8080
     
     steps:
     - name: Checkout code

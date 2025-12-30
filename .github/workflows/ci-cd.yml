@@ -120,6 +120,16 @@ jobs:
     - name: Set up Cloud SDK
       uses: google-github-actions/setup-gcloud@v2
     
+    - name: Create Artifact Registry Repository (if not exists)
+      run: |
+        gcloud artifacts repositories create nexusai-repo \
+          --repository-format=docker \
+          --location=${{ env.REGION }} \
+          --description="NexusAI Docker images for microservices" \
+          --project=${{ env.PROJECT_ID }} \
+          || echo "✅ Repository 'nexusai-repo' already exists"
+      continue-on-error: true
+    
     - name: Configure Docker for Artifact Registry
       run: |
         gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
@@ -128,8 +138,8 @@ jobs:
       timeout-minutes: 15
       run: |
         SERVICE_LOWER=$(echo "${{ matrix.service }}" | tr '[:upper:]' '[:lower:]')
-        IMAGE_NAME="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/nexusai/${SERVICE_LOWER}:${{ github.sha }}"
-        IMAGE_LATEST="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/nexusai/${SERVICE_LOWER}:latest"
+        IMAGE_NAME="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/nexusai-repo/${SERVICE_LOWER}:${{ github.sha }}"
+        IMAGE_LATEST="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/nexusai-repo/${SERVICE_LOWER}:latest"
         
         echo "Building ${{ matrix.service }}..."
         docker build -t $IMAGE_NAME -t $IMAGE_LATEST -f ${{ matrix.service }}/Dockerfile .
@@ -178,7 +188,7 @@ jobs:
     - name: Deploy to Cloud Run
       run: |
         SERVICE_NAME=$(echo "${{ matrix.service.name }}" | tr '[:upper:]' '[:lower:]')
-        IMAGE="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/nexusai/${{ matrix.service.name }}:${{ github.sha }}"
+        IMAGE="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/nexusai-repo/${{ matrix.service.name }}:${{ github.sha }}"
         
         gcloud run deploy $SERVICE_NAME \
           --image $IMAGE \

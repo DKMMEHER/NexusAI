@@ -136,18 +136,18 @@ class TestDocumentSummarizationIntegration:
         for model in models:
             fake_txt = io.BytesIO(f"Test document for model {model}".encode())
             
-        response = client.post(
-            "/summarize",
+            response = client.post(
+                "/summarize",
                 files={"files": ("test.txt", fake_txt, "text/plain")},
                 data={
                     "model": model,
                     "user_id": "test_user_123"
                 }
-        )
+            )
             
-        assert response.status_code == 200
-        data = response.json()
-        assert "summary" in data
+            assert response.status_code == 200
+            data = response.json()
+            assert "summary" in data
             print(f"✅ Model {model} works correctly")
     
     def test_summarize_very_long_document(self, mock_genai):
@@ -214,13 +214,13 @@ class TestDocumentSummarizationIntegration:
         with patch("DocumentsSummarization.backend.db") as mock_db:
             fake_txt = io.BytesIO(b"Database integration test document")
             
-        response = client.post(
-            "/summarize",
+            response = client.post(
+                "/summarize",
                 files={"files": ("test.txt", fake_txt, "text/plain")},
-            data={"user_id": "test_user_123"}
-        )
+                data={"user_id": "test_user_123"}
+            )
             
-        assert response.status_code == 200
+            assert response.status_code == 200
             
             # Verify database save was called
             mock_db.save_job.assert_called_once()
@@ -241,10 +241,10 @@ class TestDocumentSummarizationIntegration:
         def make_request(i):
             fake_txt = io.BytesIO(f"Concurrent document {i} with content to summarize.".encode())
             return client.post(
-            "/summarize",
+                "/summarize",
                 files={"files": (f"doc{i}.txt", fake_txt, "text/plain")},
                 data={"user_id": f"user_{i}"}
-        )
+            )
         
         # Submit 5 concurrent requests
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:

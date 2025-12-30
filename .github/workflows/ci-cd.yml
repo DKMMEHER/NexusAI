@@ -188,7 +188,7 @@ jobs:
     - name: Deploy to Cloud Run
       run: |
         SERVICE_NAME=$(echo "${{ matrix.service.name }}" | tr '[:upper:]' '[:lower:]')
-        IMAGE="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/nexusai-repo/${{ matrix.service.name }}:${{ github.sha }}"
+        IMAGE="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/nexusai-repo/${SERVICE_NAME}:${{ github.sha }}"
         
         gcloud run deploy $SERVICE_NAME \
           --image $IMAGE \

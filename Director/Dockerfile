@@ -36,11 +36,11 @@ COPY Director/ ./Director/
 # Copy built frontend from Stage 1
 COPY --from=frontend-build /app/frontend/dist /app/frontend/dist
 
-# Copy Nginx configuration
-COPY nginx.conf /etc/nginx/nginx.conf
+# Copy Cloud Run specific Nginx configuration
+COPY Director/nginx-cloudrun.conf /etc/nginx/nginx.conf
 
-# Copy start script
-COPY start.sh /app/start.sh
+# Copy Cloud Run specific start script
+COPY Director/start-cloudrun.sh /app/start.sh
 RUN chmod +x /app/start.sh
 
 # Set environment variables

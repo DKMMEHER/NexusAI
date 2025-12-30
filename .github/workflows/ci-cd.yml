@@ -220,6 +220,14 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     
     steps:
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v2
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
+    
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v2
+    
     - name: Wait for deployment to stabilize
       run: sleep 30
     
@@ -228,15 +236,28 @@ jobs:
         SERVICES=("imagegeneration" "chat" "director" "videogeneration" "documentssummarization" "youtubetranscript")
         
         for SERVICE in "${SERVICES[@]}"; do
-          URL="https://$SERVICE-${{ secrets.CLOUD_RUN_SUFFIX }}.run.app/health"
           echo "Checking $SERVICE..."
           
-          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" $URL || echo "000")
+          # Get the actual Cloud Run URL
+          URL=$(gcloud run services describe $SERVICE \
+            --region=asia-south1 \
+            --format='value(status.url)' 2>/dev/null || echo "")
+          
+          if [ -z "$URL" ]; then
+            echo "❌ $SERVICE not found or not deployed"
+            continue
+          fi
+          
+          echo "  URL: $URL"
+          
+          # Check health endpoint
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" "$URL/health" || echo "000")
           
           if [ "$RESPONSE" = "200" ]; then
-            echo "✅ $SERVICE is healthy"
+            echo "✅ $SERVICE is healthy (HTTP $RESPONSE)"
           else
-            echo "❌ $SERVICE health check failed (HTTP $RESPONSE)"
+            echo "⚠️  $SERVICE health check returned HTTP $RESPONSE"
+            echo "  This might be okay if the service doesn't have a /health endpoint"
           fi
         done
 

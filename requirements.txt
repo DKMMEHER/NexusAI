@@ -15,3 +15,6 @@ google-generativeai
 google-cloud-storage
 google-cloud-firestore
 firebase-admin
+pytest
+httpx
+pytest-mock

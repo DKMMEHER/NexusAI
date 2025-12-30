@@ -90,17 +90,17 @@ class TestDocumentSummarizationIntegration:
         
         with patch("DocumentsSummarization.backend.PyPDF2.PdfReader") as mock_pdf:
             # Mock PDF extraction - not needed since Gemini handles PDFs natively
-        response = client.post(
-            "/summarize",
-            files={"files": ("test_document.pdf", fake_pdf, "application/pdf")},
-            data={"user_id": "test_user_123"}
-        )
+            response = client.post(
+                "/summarize",
+                files={"files": ("test_document.pdf", fake_pdf, "application/pdf")},
+                data={"user_id": "test_user_123"}
+            )
             
-        assert response.status_code == 200
-        data = response.json()
+            assert response.status_code == 200
+            data = response.json()
             
-        assert "summary" in data
-        assert len(data["summary"]) > 0
+            assert "summary" in data
+            assert len(data["summary"]) > 0
             
             print("✅ PDF summarization works")
     
@@ -112,17 +112,17 @@ class TestDocumentSummarizationIntegration:
             # Mock DOCX extraction
             mock_extract.return_value = "First paragraph of the document. Second paragraph with more details. Third paragraph concluding the document."
             
-        response = client.post(
-            "/summarize",
+            response = client.post(
+                "/summarize",
                 files={"files": ("test_document.docx", fake_docx, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")},
-            data={"user_id": "test_user_123"}
-        )
+                data={"user_id": "test_user_123"}
+            )
             
-        assert response.status_code == 200
-        data = response.json()
+            assert response.status_code == 200
+            data = response.json()
             
-        assert "summary" in data
-        assert len(data["summary"]) > 0
+            assert "summary" in data
+            assert len(data["summary"]) > 0
             
             print("✅ DOCX summarization works")
     

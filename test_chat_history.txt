@@ -1,0 +1,40 @@
+﻿============================= test session starts =============================
+platform win32 -- Python 3.13.6, pytest-9.0.2, pluggy-1.6.0 -- C:\Study\GenAI\Project\NexusAI\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Study\GenAI\Project\NexusAI
+configfile: pyproject.toml
+plugins: anyio-4.11.0, mock-3.15.1
+collecting ... collected 1 item
+
+tests/unit/test_chat_unit.py::test_chat_with_history FAILED              [100%]
+
+================================== FAILURES ===================================
+___________________________ test_chat_with_history ____________________________
+
+mock_genai = <MagicMock name='genai' id='1896003705152'>
+
+    def test_chat_with_history(mock_genai):
+        mock_model = MagicMock()
+        mock_genai.GenerativeModel.return_value = mock_model
+    
+        history = json.dumps([
+            {"role": "user", "content": "Hello"},
+            {"role": "model", "content": "Hi"}
+        ])
+    
+        response = client.post(
+            "/chat",
+            data={"message": "How are you?", "history": history}
+        )
+    
+>       assert response.status_code == 200
+E       assert 500 == 200
+E        +  where 500 = <Response [500 Internal Server Error]>.status_code
+
+tests\unit\test_chat_unit.py:73: AssertionError
+------------------------------ Captured log call ------------------------------
+ERROR    Chat.backend:backend.py:164 Error processing chat: Object of type MagicMock is not JSON serializable
+=========================== short test summary info ===========================
+FAILED tests/unit/test_chat_unit.py::test_chat_with_history - assert 500 == 200
+ +  where 500 = <Response [500 Internal Server Error]>.status_code
+============================== 1 failed in 0.53s ==============================

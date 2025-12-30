@@ -88,21 +88,20 @@ class TestDocumentSummarizationIntegration:
         # Create a fake PDF file
         fake_pdf = io.BytesIO(b"%PDF-1.4\n%fake pdf content for testing")
         
-        with patch("DocumentsSummarization.backend.PyPDF2.PdfReader") as mock_pdf:
-            # Mock PDF extraction - not needed since Gemini handles PDFs natively
-            response = client.post(
-                "/summarize",
-                files={"files": ("test_document.pdf", fake_pdf, "application/pdf")},
-                data={"user_id": "test_user_123"}
-            )
-            
-            assert response.status_code == 200
-            data = response.json()
-            
-            assert "summary" in data
-            assert len(data["summary"]) > 0
-            
-            print("✅ PDF summarization works")
+        # Gemini handles PDFs natively, no need to mock PyPDF2
+        response = client.post(
+            "/summarize",
+            files={"files": ("test_document.pdf", fake_pdf, "application/pdf")},
+            data={"user_id": "test_user_123"}
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        
+        assert "summary" in data
+        assert len(data["summary"]) > 0
+        
+        print("✅ PDF summarization works")
     
     def test_summarize_docx_workflow(self, mock_genai):
         """Test DOCX document summarization workflow."""

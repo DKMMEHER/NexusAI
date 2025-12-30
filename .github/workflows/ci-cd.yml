@@ -127,10 +127,14 @@ jobs:
     - name: Build and Push Docker Image
       timeout-minutes: 15
       run: |
-        IMAGE_NAME="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/nexusai/${{ matrix.service }}:${{ github.sha }}"
-        IMAGE_LATEST="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/nexusai/${{ matrix.service }}:latest"
+        SERVICE_LOWER=$(echo "${{ matrix.service }}" | tr '[:upper:]' '[:lower:]')
+        IMAGE_NAME="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/nexusai/${SERVICE_LOWER}:${{ github.sha }}"
+        IMAGE_LATEST="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/nexusai/${SERVICE_LOWER}:latest"
         
+        echo "Building ${{ matrix.service }}..."
         docker build -t $IMAGE_NAME -t $IMAGE_LATEST -f ${{ matrix.service }}/Dockerfile .
+        
+        echo "Pushing ${{ matrix.service }}..."
         docker push $IMAGE_NAME
         docker push $IMAGE_LATEST
         

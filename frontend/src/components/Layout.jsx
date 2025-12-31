@@ -41,47 +41,8 @@ const Layout = ({ children }) => {
         }
     };
 
-    const [health, setHealth] = React.useState({
-        image: false,
-        video: false,
-        docs: false,
-        youtube: false,
-        chat: false
-    });
-
-    React.useEffect(() => {
-        const checkAllHealth = async () => {
-            const [image, video, docs, youtube, chat] = await Promise.all([
-                api.checkImageHealth(),
-                api.checkVideoHealth(),
-                api.checkDocsHealth(),
-                api.checkYoutubeHealth(),
-                api.checkChatHealth()
-            ]);
-            setHealth({ image, video, docs, youtube, chat });
-        };
-
-        checkAllHealth();
-        const interval = setInterval(checkAllHealth, 30000); // Check every 30s
-        return () => clearInterval(interval);
-    }, []);
-
-    const StatusIndicator = ({ online, port }) => (
-        <div className="flex justify-between text-xs items-center">
-            <div className="flex items-center gap-1.5">
-                <div className={`w-1.5 h-1.5 rounded-full ${online ? 'bg-emerald-500' : 'bg-red-500'}`} />
-                <span className="text-slate-500 dark:text-slate-400">
-                    {port === 8000 ? 'Image Gen' :
-                        port === 8002 ? 'Video Gen' :
-                            port === 8003 ? 'Doc Sum' :
-                                port === 8004 ? 'YouTube' : 'Chat'}
-                </span>
-            </div>
-            <span className={`${online ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'} font-mono`}>
-                {port}
-            </span>
-        </div>
-    );
+    // System Status removed - not applicable for microservices deployment
+    // Each service runs independently on Cloud Run with its own URL
 
     const [darkMode, setDarkMode] = React.useState(() => {
         if (typeof window !== 'undefined') {
@@ -218,21 +179,6 @@ const Layout = ({ children }) => {
                         {darkMode ? <Sun size={20} /> : <Moon size={20} />}
                         <span>{darkMode ? 'Light Mode' : 'Dark Mode'}</span>
                     </button>
-
-
-                    <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-4 transition-colors duration-200">
-                        <div className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200 mb-2">
-                            <Activity size={16} className="text-emerald-500" />
-                            System Status
-                        </div>
-                        <div className="space-y-1">
-                            <StatusIndicator online={health.image} port={8000} />
-                            <StatusIndicator online={health.video} port={8002} />
-                            <StatusIndicator online={health.docs} port={8003} />
-                            <StatusIndicator online={health.youtube} port={8004} />
-                            <StatusIndicator online={health.chat} port={8005} />
-                        </div>
-                    </div>
                 </div>
             </aside>
 

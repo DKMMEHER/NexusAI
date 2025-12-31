@@ -199,7 +199,7 @@ jobs:
           --set-env-vars "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" \
           --set-env-vars "GOOGLE_CLOUD_PROJECT=${{ env.PROJECT_ID }}" \
           --memory 2Gi \
-          --cpu 2 \
+          --cpu 1 \
           --timeout 300 \
           --max-instances 10 \
           --min-instances 0

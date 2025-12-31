@@ -59,7 +59,7 @@ def test_invalid_url_format():
         "/transcript",
         data={"url": "not_a_youtube_url"}
     )
-    assert response.status_code == 500
+    assert response.status_code == 400  # User error, not server error
     assert "Invalid YouTube URL" in response.json()["detail"]
 
 def test_transcript_api_failure(mock_yt_api):
@@ -70,8 +70,8 @@ def test_transcript_api_failure(mock_yt_api):
         data={"url": "https://www.youtube.com/watch?v=restricted"}
     )
     
-    assert response.status_code == 500
-    assert "Transcripts Disabled" in response.json()["detail"]
+    assert response.status_code == 400  # User error (video has no captions)
+    assert "transcript" in response.json()["detail"].lower()
 
 def test_health_check_explicit():
     response = client.get("/health")

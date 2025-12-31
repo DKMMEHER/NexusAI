@@ -54,23 +54,22 @@ def extract_transcript_details(youtube_video_url):
             proxies = {"http": proxy_url, "https": proxy_url}
             logger.info(f"Using YouTube Proxy: {proxy_url}")
 
-        # Try different methods based on library version
+        # Fetch transcript using the correct API
         try:
-            # Method 1: Try get_transcript (older versions)
-            if hasattr(YouTubeTranscriptApi, 'get_transcript'):
-                transcript_text_list = YouTubeTranscriptApi.get_transcript(video_id, proxies=proxies)
-            # Method 2: Try list_transcripts (newer versions)
-            elif hasattr(YouTubeTranscriptApi, 'list_transcripts'):
-                transcript_list = YouTubeTranscriptApi.list_transcripts(video_id, proxies=proxies)
-                transcript_text_list = transcript_list.find_transcript(['en']).fetch()
-            else:
-                # Method 3: Fallback - create instance
-                api = YouTubeTranscriptApi()
-                transcript_text_list = api.get_transcript(video_id, proxies=proxies)
-        except AttributeError:
-            # If all else fails, try without proxies
-            logger.warning("Could not use proxy, trying without...")
-            transcript_text_list = YouTubeTranscriptApi.get_transcript(video_id)
+            logger.info(f"Fetching transcript for video ID: {video_id}")
+            # Use get_transcript - this is the correct method for youtube-transcript-api 0.6.1
+            transcript_text_list = YouTubeTranscriptApi.get_transcript(video_id, proxies=proxies)
+            logger.info(f"Successfully fetched transcript with {len(transcript_text_list)} entries")
+        except Exception as api_error:
+            logger.error(f"API Error: {str(api_error)}")
+            # Try without proxies as fallback
+            try:
+                logger.info("Retrying without proxy...")
+                transcript_text_list = YouTubeTranscriptApi.get_transcript(video_id)
+                logger.info(f"Successfully fetched transcript without proxy")
+            except Exception as fallback_error:
+                logger.error(f"Fallback also failed: {str(fallback_error)}")
+                raise fallback_error
 
         transcript = ""
         for i in transcript_text_list:
@@ -80,10 +79,12 @@ def extract_transcript_details(youtube_video_url):
             else:
                 transcript += " " + getattr(i, 'text', '')
 
+        logger.info(f"Transcript length: {len(transcript)} characters")
         return transcript, video_id
 
     except Exception as e:
         logger.error(f"Error extracting transcript: {str(e)}")
+        logger.error(f"Error type: {type(e).__name__}")
         raise e
 
 import uuid

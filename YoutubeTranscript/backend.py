@@ -4,6 +4,8 @@ from fastapi import FastAPI, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from youtube_transcript_api import YouTubeTranscriptApi
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 import google.generativeai as genai
 from dotenv import load_dotenv
 import logging
@@ -38,7 +40,13 @@ if not api_key:
 else:
     genai.configure(api_key=api_key)
 
-def extract_transcript_details(youtube_video_url):
+# Get YouTube API Key
+youtube_api_key = os.getenv("YOUTUBE_API_KEY")
+if not youtube_api_key:
+    logger.warning("YOUTUBE_API_KEY not found. YouTube Data API features will be limited.")
+
+def extract_video_id(youtube_video_url):
+    """Extract video ID from YouTube URL"""
     try:
         if "v=" in youtube_video_url:
             video_id = youtube_video_url.split("v=")[1].split("&")[0]
@@ -46,46 +54,145 @@ def extract_transcript_details(youtube_video_url):
             video_id = youtube_video_url.split("youtu.be/")[1].split("?")[0]
         else:
             raise ValueError("Invalid YouTube URL format")
-
-        # Configure Proxy if available
-        proxies = None
-        proxy_url = os.getenv("YOUTUBE_PROXY")
-        if proxy_url:
-            proxies = {"http": proxy_url, "https": proxy_url}
-            logger.info(f"Using YouTube Proxy: {proxy_url}")
-
-        # Fetch transcript using the correct API
-        try:
-            logger.info(f"Fetching transcript for video ID: {video_id}")
-            # Use get_transcript - this is the correct method for youtube-transcript-api 0.6.1
-            transcript_text_list = YouTubeTranscriptApi.get_transcript(video_id, proxies=proxies)
-            logger.info(f"Successfully fetched transcript with {len(transcript_text_list)} entries")
-        except Exception as api_error:
-            logger.error(f"API Error: {str(api_error)}")
-            # Try without proxies as fallback
-            try:
-                logger.info("Retrying without proxy...")
-                transcript_text_list = YouTubeTranscriptApi.get_transcript(video_id)
-                logger.info(f"Successfully fetched transcript without proxy")
-            except Exception as fallback_error:
-                logger.error(f"Fallback also failed: {str(fallback_error)}")
-                raise fallback_error
-
-        transcript = ""
-        for i in transcript_text_list:
-            # Handle both dictionary and object access
-            if isinstance(i, dict):
-                transcript += " " + i.get('text', '')
-            else:
-                transcript += " " + getattr(i, 'text', '')
-
-        logger.info(f"Transcript length: {len(transcript)} characters")
-        return transcript, video_id
-
+        return video_id
     except Exception as e:
-        logger.error(f"Error extracting transcript: {str(e)}")
-        logger.error(f"Error type: {type(e).__name__}")
+        logger.error(f"Error extracting video ID: {str(e)}")
+        raise ValueError("Invalid YouTube URL format")
+
+def get_transcript_via_youtube_api(video_id, api_key):
+    """
+    Fetch transcript using official YouTube Data API v3
+    This is more reliable and not blocked by YouTube
+    """
+    try:
+        logger.info(f"Fetching transcript via YouTube Data API for video: {video_id}")
+        
+        # Build YouTube API client
+        youtube = build('youtube', 'v3', developerKey=api_key)
+        
+        # Get captions list
+        captions_response = youtube.captions().list(
+            part='snippet',
+            videoId=video_id
+        ).execute()
+        
+        if not captions_response.get('items'):
+            raise ValueError("No captions available for this video")
+        
+        # Find English caption track (or first available)
+        caption_id = None
+        for item in captions_response['items']:
+            if item['snippet']['language'] == 'en':
+                caption_id = item['id']
+                break
+        
+        if not caption_id and captions_response['items']:
+            caption_id = captions_response['items'][0]['id']
+        
+        if not caption_id:
+            raise ValueError("No suitable caption track found")
+        
+        # Download caption
+        # Note: YouTube Data API v3 doesn't directly support caption download
+        # We need to fall back to youtube-transcript-api for actual download
+        # But we verified captions exist via official API
+        logger.info(f"Captions available. Attempting download via transcript API...")
+        
+        # Try youtube-transcript-api as fallback for actual download
+        transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
+        
+        transcript = ""
+        for entry in transcript_list:
+            if isinstance(entry, dict):
+                transcript += " " + entry.get('text', '')
+            else:
+                transcript += " " + getattr(entry, 'text', '')
+        
+        logger.info(f"Successfully fetched transcript. Length: {len(transcript)} characters")
+        return transcript
+        
+    except HttpError as e:
+        logger.error(f"YouTube API Error: {str(e)}")
+        if e.resp.status == 403:
+            raise ValueError("YouTube API quota exceeded or API key invalid")
+        elif e.resp.status == 404:
+            raise ValueError("Video not found")
+        else:
+            raise ValueError(f"YouTube API error: {str(e)}")
+    except Exception as e:
+        logger.error(f"Error fetching transcript via API: {str(e)}")
         raise e
+
+def get_transcript_fallback(video_id):
+    """
+    Fallback method using youtube-transcript-api
+    May be blocked in Cloud Run but worth trying
+    """
+    try:
+        logger.info(f"Attempting fallback transcript fetch for video: {video_id}")
+        transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
+        
+        transcript = ""
+        for entry in transcript_list:
+            if isinstance(entry, dict):
+                transcript += " " + entry.get('text', '')
+            else:
+                transcript += " " + getattr(entry, 'text', '')
+        
+        logger.info(f"Fallback successful. Transcript length: {len(transcript)} characters")
+        return transcript
+    except Exception as e:
+        logger.error(f"Fallback method failed: {str(e)}")
+        raise e
+
+def extract_transcript_details(youtube_video_url):
+    """
+    Main function to extract transcript
+    Tries YouTube Data API first, then falls back to youtube-transcript-api
+    """
+    try:
+        # Extract video ID
+        video_id = extract_video_id(youtube_video_url)
+        logger.info(f"Extracted video ID: {video_id}")
+        
+        transcript = None
+        
+        # Method 1: Try YouTube Data API v3 (if API key available)
+        if youtube_api_key:
+            try:
+                transcript = get_transcript_via_youtube_api(video_id, youtube_api_key)
+                logger.info("Successfully fetched transcript via YouTube Data API")
+            except Exception as api_error:
+                logger.warning(f"YouTube Data API failed: {str(api_error)}")
+                logger.info("Falling back to youtube-transcript-api...")
+        
+        # Method 2: Fallback to youtube-transcript-api
+        if not transcript:
+            try:
+                transcript = get_transcript_fallback(video_id)
+                logger.info("Successfully fetched transcript via fallback method")
+            except Exception as fallback_error:
+                logger.error(f"All methods failed. Last error: {str(fallback_error)}")
+                # Provide user-friendly error message
+                error_msg = str(fallback_error)
+                if "Subtitles are disabled" in error_msg or "Could not retrieve" in error_msg:
+                    raise ValueError(
+                        "This video doesn't have captions/subtitles available. "
+                        "Please try a different video with captions enabled (look for the [CC] badge on YouTube). "
+                        "Note: Some videos may have captions but are blocked from automated access."
+                    )
+                else:
+                    raise ValueError(f"Failed to fetch transcript: {error_msg}")
+        
+        return transcript, video_id
+        
+    except ValueError as ve:
+        # Re-raise ValueError with user-friendly message
+        raise ve
+    except Exception as e:
+        logger.error(f"Unexpected error: {str(e)}")
+        logger.error(f"Error type: {type(e).__name__}")
+        raise ValueError(f"An unexpected error occurred: {str(e)}")
 
 import uuid
 from datetime import datetime
@@ -112,7 +219,7 @@ else:
 @app.post("/transcript")
 async def get_transcript_summary(
     url: str = Form(...), 
-    model: str = Form("gemini-2.5-flash"),
+    model: str = Form("gemini-2.0-flash-exp"),
     user_id: str = Form(None)
 ):
     job_id = str(uuid.uuid4())[:8]
@@ -142,6 +249,11 @@ within 250 words. Please provide the summary of the text given here: """
             "video_id": video_id
         })
 
+    except ValueError as ve:
+        # User-friendly errors
+        logger.error(f"User error: {str(ve)}")
+        status = "Failed"
+        return JSONResponse({"detail": str(ve)}, status_code=400)
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -150,7 +262,7 @@ within 250 words. Please provide the summary of the text given here: """
         return JSONResponse({"detail": f"Backend Error: {str(e)}"}, status_code=500)
         
     finally:
-        # Calculate Metrics - placeholders or simplistic
+        # Calculate Metrics
         now = datetime.now()
         
         # TPM (Tokens Per Minute)

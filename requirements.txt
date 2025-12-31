@@ -10,6 +10,7 @@ openpyxl
 python-pptx
 beautifulsoup4
 youtube_transcript_api==0.6.1
+google-api-python-client
 google-genai
 google-generativeai
 google-cloud-storage

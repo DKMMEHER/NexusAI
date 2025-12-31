@@ -147,7 +147,7 @@ class TestYouTubeTranscriptIntegration:
         )
         
         # Should handle gracefully
-        assert response.status_code == 500
+        assert response.status_code == 400  # User error
         print("✅ Invalid URL validation works")
     
     def test_error_handling_empty_url(self):
@@ -160,7 +160,7 @@ class TestYouTubeTranscriptIntegration:
             }
         )
         
-        assert response.status_code in [422, 500]
+        assert response.status_code in [400, 422, 500]  # Accept user error or validation error
         print("✅ Empty URL validation works")
     
     def test_error_handling_missing_url(self):
@@ -188,7 +188,7 @@ class TestYouTubeTranscriptIntegration:
             }
         )
         
-        assert response.status_code == 500
+        assert response.status_code == 400  # User error
     
     def test_error_handling_no_transcript_available(self, mock_youtube_transcript, mock_genai):
         """Test error handling when transcript is not available."""
@@ -203,7 +203,7 @@ class TestYouTubeTranscriptIntegration:
             }
         )
         
-        assert response.status_code == 500
+        assert response.status_code == 400  # User error - no transcript available
     
     def test_database_integration(self, mock_youtube_transcript, mock_genai):
         """Test that transcript jobs are saved to database."""

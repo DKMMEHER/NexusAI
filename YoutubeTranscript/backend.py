@@ -54,8 +54,23 @@ def extract_transcript_details(youtube_video_url):
             proxies = {"http": proxy_url, "https": proxy_url}
             logger.info(f"Using YouTube Proxy: {proxy_url}")
 
-        # Use static method get_transcript which supports proxies
-        transcript_text_list = YouTubeTranscriptApi.get_transcript(video_id, proxies=proxies)
+        # Try different methods based on library version
+        try:
+            # Method 1: Try get_transcript (older versions)
+            if hasattr(YouTubeTranscriptApi, 'get_transcript'):
+                transcript_text_list = YouTubeTranscriptApi.get_transcript(video_id, proxies=proxies)
+            # Method 2: Try list_transcripts (newer versions)
+            elif hasattr(YouTubeTranscriptApi, 'list_transcripts'):
+                transcript_list = YouTubeTranscriptApi.list_transcripts(video_id, proxies=proxies)
+                transcript_text_list = transcript_list.find_transcript(['en']).fetch()
+            else:
+                # Method 3: Fallback - create instance
+                api = YouTubeTranscriptApi()
+                transcript_text_list = api.get_transcript(video_id, proxies=proxies)
+        except AttributeError:
+            # If all else fails, try without proxies
+            logger.warning("Could not use proxy, trying without...")
+            transcript_text_list = YouTubeTranscriptApi.get_transcript(video_id)
 
         transcript = ""
         for i in transcript_text_list:

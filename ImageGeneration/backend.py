@@ -592,7 +592,7 @@ def serve_gcs_image(filename: str):
          raise HTTPException(status_code=500, detail="Failed to retrieve image")
 
 # Include the router with prefix /image to match frontend proxy
-app.include_router(router, prefix="/image")
+app.include_router(router)
 
 if __name__ == "__main__":
     import uvicorn

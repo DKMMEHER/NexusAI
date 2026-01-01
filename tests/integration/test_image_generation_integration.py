@@ -84,7 +84,7 @@ class TestImageGenerationIntegration:
         """Test the complete image generation workflow."""
         # Step 1: Submit image generation request
         response = client.post(
-            "/image/generate",
+            "/generate",
             data={
                 "prompt": "A beautiful sunset over mountains",
                 "model": "imagen-3.0-generate-001",
@@ -118,7 +118,7 @@ class TestImageGenerationIntegration:
         
         for model in models:
             response = client.post(
-                "/image/generate",
+                "/generate",
                 data={
                     "prompt": f"Test image for {model}",
                     "model": model,
@@ -137,7 +137,7 @@ class TestImageGenerationIntegration:
         
         for ratio in aspect_ratios:
             response = client.post(
-                "/image/generate",
+                "/generate",
                 data={
                     "prompt": f"Test image with {ratio} aspect ratio",
                     "aspect_ratio": ratio,
@@ -154,7 +154,7 @@ class TestImageGenerationIntegration:
         
         for level in safety_levels:
             response = client.post(
-                "/image/generate",
+                "/generate",
                 data={
                     "prompt": "A peaceful landscape",
                     "safety_filter_level": level,
@@ -168,7 +168,7 @@ class TestImageGenerationIntegration:
     def test_error_handling_missing_prompt(self):
         """Test error handling when prompt is missing."""
         response = client.post(
-            "/image/generate",
+            "/generate",
             data={
                 "model": "imagen-3.0-generate-001",
                 "user_id": "test_user_123"
@@ -181,7 +181,7 @@ class TestImageGenerationIntegration:
     def test_error_handling_empty_prompt(self):
         """Test error handling when prompt is empty."""
         response = client.post(
-            "/image/generate",
+            "/generate",
             data={
                 "prompt": "",
                 "user_id": "test_user_123"
@@ -197,7 +197,7 @@ class TestImageGenerationIntegration:
         
         def make_request(i):
             return client.post(
-                "/image/generate",
+                "/generate",
                 data={
                     "prompt": f"Concurrent test image {i}",
                     "user_id": "test_user_123"
@@ -219,7 +219,7 @@ class TestImageGenerationIntegration:
         """Test that image generation jobs are saved to database."""
         with patch("ImageGeneration.backend.db") as mock_db:
             response = client.post(
-                "/image/generate",
+                "/generate",
                 data={
                     "prompt": "Database integration test",
                     "user_id": "test_user_123"
@@ -244,7 +244,7 @@ class TestImageGenerationIntegration:
         start_time = time.time()
         
         response = client.post(
-            "/image/generate",
+            "/generate",
             data={
                 "prompt": "Performance test image",
                 "user_id": "test_user_123"

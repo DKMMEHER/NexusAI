@@ -44,7 +44,7 @@ def test_health_check():
     """Test the health check endpoint."""
     response = client.get("/health")
     assert response.status_code == 200
-    assert response.json() == {"status": "ok", "service": "ImageGeneration"}
+    assert response.json() == {"status": "healthy"}
 
 
 # ========== IMAGE GENERATION TESTS ==========
@@ -54,7 +54,7 @@ def test_generate_image_success(mock_external_services):
     mock_call, mock_db, mock_storage = mock_external_services
     
     response = client.post(
-        "/image/generate",
+        "/generate",
         data={
             "prompt": "A futuristic city",
             "model": "gemini-2.5-flash-image",
@@ -79,7 +79,7 @@ def test_generate_image_no_auth():
     """Test behavior when API key is missing."""
     with patch.dict(os.environ, {}, clear=True):
         response = client.post(
-            "/image/generate",
+            "/generate",
             data={
                 "prompt": "Test prompt",
             }
@@ -96,7 +96,7 @@ def test_generate_image_api_failure(mock_external_services):
     mock_call.return_value = (None, None, "API Error", 500, 0)
     
     response = client.post(
-        "/image/generate",
+        "/generate",
         data={
             "prompt": "Crash test",
             "user_id": "test_user_id",
@@ -117,7 +117,7 @@ def test_generate_image_with_aspect_ratio_16_9(mock_external_services):
     mock_call, mock_db, mock_storage = mock_external_services
     
     response = client.post(
-        "/image/generate",
+        "/generate",
         data={
             "prompt": "A landscape photo",
             "model": "gemini-2.5-flash-image",
@@ -139,7 +139,7 @@ def test_generate_image_square_aspect_ratio_1_1(mock_external_services):
     mock_call, mock_db, mock_storage = mock_external_services
     
     response = client.post(
-        "/image/generate",
+        "/generate",
         data={
             "prompt": "A square portrait",
             "model": "gemini-2.5-flash-image",
@@ -164,7 +164,7 @@ def test_generate_image_safety_blocked(mock_external_services):
     mock_call.return_value = (None, None, "The image generation was blocked by safety settings. Please try a different prompt.", 400, 0)
     
     response = client.post(
-        "/image/generate",
+        "/generate",
         data={
             "prompt": "Inappropriate content",
             "user_id": "test_user_id",
@@ -186,7 +186,7 @@ def test_edit_image_success(mock_external_services):
     fake_image = BytesIO(b"fake image data")
     
     response = client.post(
-        "/image/edit",
+        "/edit",
         data={
             "prompt": "Make it blue",
             "api_key": "fake_api_key",
@@ -211,7 +211,7 @@ def test_virtual_try_on_success(mock_external_services):
     person_image = BytesIO(b"fake person image")
     
     response = client.post(
-        "/image/virtual_try_on",
+        "/virtual_try_on",
         data={
             "prompt": "Try on this shirt",
             "api_key": "fake_api_key",
@@ -238,7 +238,7 @@ def test_create_ads_multiple_variations(mock_external_services):
     product_image = BytesIO(b"fake product image")
     
     response = client.post(
-        "/image/create_ads",
+        "/create_ads",
         data={
             "prompt": "Fashion ad",
             "variations": "3",
@@ -267,7 +267,7 @@ def test_merge_images_success(mock_external_services):
     image2 = BytesIO(b"fake image 2")
     
     response = client.post(
-        "/image/merge_images",
+        "/merge_images",
         data={
             "prompt": "Merge these",
             "api_key": "fake_api_key",
@@ -294,7 +294,7 @@ def test_generate_scenes_success(mock_external_services):
     scene_image = BytesIO(b"fake scene image")
     
     response = client.post(
-        "/image/generate_scenes",
+        "/generate_scenes",
         data={
             "prompt": "Cyberpunk style",
             "api_key": "fake_api_key",
@@ -323,7 +323,7 @@ def test_restore_old_image_success(mock_external_services):
     old_image = BytesIO(b"fake old image")
     
     response = client.post(
-        "/image/restore_old_image",
+        "/restore_old_image",
         data={
             "api_key": "fake_api_key",
             "user_id": "test_user_id"

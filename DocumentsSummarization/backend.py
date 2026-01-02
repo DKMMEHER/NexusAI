@@ -20,6 +20,11 @@ from bs4 import BeautifulSoup
 
 load_dotenv()
 
+# LangSmith Integration
+import sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from langsmith_config import trace_llm_call, token_tracker
+
 # Configure Logging
 logger = logging.getLogger("backend.pdf")
 logger.setLevel(logging.INFO)
@@ -110,11 +115,13 @@ else:
     job_history = db.get_user_jobs(None)
 
 @app.post("/summarize")
+@trace_llm_call(name="document_summarization", service="DocumentsSummarization")
 async def summarize_document(
     files: List[UploadFile] = File(...), 
     prompt: str = Form(None), 
     model: str = Form("gemini-2.5-flash"),
-    user_id: str = Form(None)
+    user_id: str = Form(None),
+    job_id: str = None
 ):
     job_id = str(uuid.uuid4())[:8]
     start_time = datetime.now()
@@ -187,6 +194,22 @@ async def summarize_document(
         prompt_parts.extend(combined_content)
             
         response = gen_model.generate_content(prompt_parts)
+        
+        # Track token usage with LangSmith
+        if response.usage_metadata and user_id:
+            try:
+                token_tracker.log_usage(
+                    service="DocumentsSummarization",
+                    operation="summarize_documents",
+                    model=model,
+                    input_tokens=response.usage_metadata.prompt_token_count,
+                    output_tokens=response.usage_metadata.candidates_token_count,
+                    user_id=user_id,
+                    job_id=job_id or str(uuid.uuid4())
+                )
+            except Exception as e:
+                logger.warning(f"Failed to log token usage: {e}")
+        
         status = "Success"
         return JSONResponse({"summary": response.text})
 

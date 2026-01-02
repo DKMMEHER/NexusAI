@@ -17,6 +17,11 @@ logger = logging.getLogger(__name__)
 # Load environment variables
 load_dotenv()
 
+# LangSmith Integration
+import sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from langsmith_config import trace_async_llm_call, token_tracker
+
 app = FastAPI()
 
 # Health Check
@@ -217,10 +222,12 @@ else:
     db = JsonDatabase()
 
 @app.post("/transcript")
+@trace_async_llm_call(name="youtube_transcript_summary", service="YoutubeTranscript")
 async def get_transcript_summary(
     url: str = Form(...), 
     model: str = Form("gemini-2.0-flash-exp"),
-    user_id: str = Form(None)
+    user_id: str = Form(None),
+    job_id: str = None
 ):
     job_id = str(uuid.uuid4())[:8]
     start_time = datetime.now()
@@ -240,6 +247,21 @@ within 250 words. Please provide the summary of the text given here: """
 
         gen_model = genai.GenerativeModel(model)
         response = gen_model.generate_content(prompt + transcript_text)
+        
+        # Track token usage with LangSmith
+        if response.usage_metadata and user_id:
+            try:
+                token_tracker.log_usage(
+                    service="YoutubeTranscript",
+                    operation="transcript_summary",
+                    model=model,
+                    input_tokens=response.usage_metadata.prompt_token_count,
+                    output_tokens=response.usage_metadata.candidates_token_count,
+                    user_id=user_id,
+                    job_id=job_id or str(uuid.uuid4())
+                )
+            except Exception as e:
+                logger.warning(f"Failed to log token usage: {e}")
         
         status = "Success"
         

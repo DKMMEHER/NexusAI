@@ -120,8 +120,7 @@ async def summarize_document(
     files: List[UploadFile] = File(...), 
     prompt: str = Form(None), 
     model: str = Form("gemini-2.5-flash"),
-    user_id: str = Form(None),
-    job_id: str = None
+    user_id: str = Form(None)
 ):
     job_id = str(uuid.uuid4())[:8]
     start_time = datetime.now()

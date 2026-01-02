@@ -226,8 +226,7 @@ else:
 async def get_transcript_summary(
     url: str = Form(...), 
     model: str = Form("gemini-2.0-flash-exp"),
-    user_id: str = Form(None),
-    job_id: str = None
+    user_id: str = Form(None)
 ):
     job_id = str(uuid.uuid4())[:8]
     start_time = datetime.now()

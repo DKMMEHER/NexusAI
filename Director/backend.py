@@ -27,11 +27,18 @@ from .database import JsonDatabase, FirestoreDatabase
 # Load environment variables
 load_dotenv()
 
-# LangSmith Integration
-import sys
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from langsmith_config import trace_async_llm_call, token_tracker
-from langsmith import traceable
+# LangSmith Integration (optional)
+try:
+    import sys
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from langsmith_config import trace_async_llm_call, token_tracker
+    from langsmith import traceable
+except Exception as e:
+    trace_async_llm_call = None
+    token_tracker = None
+    traceable = None
+    import logging
+    logging.warning(f"LangSmith integration not available: {e}")
 
 # Configure Logging
 logging.basicConfig(level=logging.INFO)

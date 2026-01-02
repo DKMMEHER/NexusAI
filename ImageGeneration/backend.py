@@ -20,10 +20,16 @@ from auth import verify_token
 from dotenv import load_dotenv
 load_dotenv() # Load from .env in CWD
 
-# LangSmith Integration
-import sys
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from langsmith_config import trace_llm_call, token_tracker
+# LangSmith Integration (optional)
+try:
+    import sys
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from langsmith_config import trace_llm_call, token_tracker
+except Exception as e:
+    trace_llm_call = None
+    token_tracker = None
+    import logging
+    logging.warning(f"LangSmith integration not available: {e}")
 
 # Use relative import for prompts to work when imported from parent directory
 try:

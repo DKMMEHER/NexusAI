@@ -72,7 +72,6 @@ else:
     db = JsonDatabase()
 
 @app.post("/chat")
-@trace_async_llm_call(name="chat_completion", service="Chat")
 async def chat_endpoint(
     message: str = Form(...), 
     history: str = Form(None), 

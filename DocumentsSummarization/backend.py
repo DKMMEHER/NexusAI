@@ -115,7 +115,6 @@ else:
     job_history = db.get_user_jobs(None)
 
 @app.post("/summarize")
-@trace_llm_call(name="document_summarization", service="DocumentsSummarization")
 async def summarize_document(
     files: List[UploadFile] = File(...), 
     prompt: str = Form(None), 

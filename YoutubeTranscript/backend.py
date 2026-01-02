@@ -222,7 +222,6 @@ else:
     db = JsonDatabase()
 
 @app.post("/transcript")
-@trace_async_llm_call(name="youtube_transcript_summary", service="YoutubeTranscript")
 async def get_transcript_summary(
     url: str = Form(...), 
     model: str = Form("gemini-2.0-flash-exp"),

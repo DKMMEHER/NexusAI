@@ -17,10 +17,16 @@ logger = logging.getLogger(__name__)
 # Load environment variables
 load_dotenv()
 
-# LangSmith Integration
-import sys
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from langsmith_config import token_tracker
+# LangSmith Integration (optional)
+try:
+    import sys
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from langsmith_config import token_tracker
+except Exception as e:
+    # LangSmith not available, continue without it
+    token_tracker = None
+    import logging
+    logging.warning(f"LangSmith integration not available: {e}")
 
 app = FastAPI()
 

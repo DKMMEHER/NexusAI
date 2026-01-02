@@ -20,15 +20,7 @@ from bs4 import BeautifulSoup
 
 load_dotenv()
 
-# LangSmith Integration (optional)
-try:
-    import sys
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    from langsmith_config import token_tracker
-except Exception as e:
-    token_tracker = None
-    import logging
-    logging.warning(f"LangSmith integration not available: {e}")
+
 
 # Configure Logging
 logger = logging.getLogger("backend.pdf")

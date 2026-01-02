@@ -20,7 +20,7 @@ load_dotenv()
 # LangSmith Integration
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from langsmith_config import trace_async_llm_call, token_tracker
+from langsmith_config import token_tracker
 
 app = FastAPI()
 

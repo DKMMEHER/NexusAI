@@ -90,7 +90,6 @@ def b64encode_file(file: UploadFile):
     mime = file.content_type or "image/png"
     return base64.b64encode(data).decode('utf-8'), mime
 
-@trace_llm_call(name="gemini_image_generation", service="ImageGeneration")
 def call_nano_banana(api_key: str, prompt: str, images: List[dict] = None, model: str = "gemini-2.5-flash-image", grounding: bool = False, aspect_ratio: str = None, retries: int = 3, backoff: float = 1.5, user_id: str = None, job_id: str = None):
     # Construct URL based on model
     url = API_BASE_URL.format(model=model)

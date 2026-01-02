@@ -95,7 +95,6 @@ app.mount("/videos", StaticFiles(directory="Generated_Videos"), name="videos")
 
 # --- Core Logic ---
 
-@trace_async_llm_call(name="generate_video_script", service="Director")
 async def generate_script(job_id: str, topic: str, duration_seconds: int, resolution: str = "1080p"):
     """Generates a scene-by-scene script using Gemini."""
     logger.info(f"[{job_id}] Generating script for: {topic} ({duration_seconds}s, {resolution})")

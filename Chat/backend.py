@@ -16,6 +16,11 @@ logger = logging.getLogger(__name__)
 # Load environment variables
 load_dotenv()
 
+# LangSmith Integration
+import sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from langsmith_config import trace_async_llm_call, token_tracker
+
 app = FastAPI(title="Chat & Q&A Backend")
 
 # Configure CORS
@@ -67,6 +72,7 @@ else:
     db = JsonDatabase()
 
 @app.post("/chat")
+@trace_async_llm_call(name="chat_completion", service="Chat")
 async def chat_endpoint(
     message: str = Form(...), 
     history: str = Form(None), 
@@ -151,6 +157,21 @@ async def chat_endpoint(
         
         if response.usage_metadata:
             token_usage = str(response.usage_metadata.total_token_count)
+            
+            # Track token usage with LangSmith
+            if user_id:
+                try:
+                    token_tracker.log_usage(
+                        service="Chat",
+                        operation="chat_message",
+                        model=model,
+                        input_tokens=response.usage_metadata.prompt_token_count,
+                        output_tokens=response.usage_metadata.candidates_token_count,
+                        user_id=user_id,
+                        job_id=job_id
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to log token usage: {e}")
         
         status = "Success"
 

@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NexusAI Analytics Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 2rem;
+            border-radius: 20px;
+            margin-bottom: 2rem;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            color: #667eea;
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 1.1rem;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 2rem;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .stat-label {
+            color: #888;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-value {
+            color: #333;
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-change {
+            color: #10b981;
+            font-size: 0.9rem;
+        }
+
+        .stat-change.negative {
+            color: #ef4444;
+        }
+
+        .chart-container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 2rem;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            margin-bottom: 2rem;
+        }
+
+        .chart-title {
+            color: #333;
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+            font-weight: 600;
+        }
+
+        .service-breakdown {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .service-item {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .service-name {
+            flex: 0 0 150px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .service-bar {
+            flex: 1;
+            height: 30px;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            border-radius: 15px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .service-value {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: white;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .traces-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .trace-item {
+            background: #f8f9fa;
+            padding: 1.5rem;
+            border-radius: 12px;
+            border-left: 4px solid #667eea;
+            transition: all 0.3s ease;
+        }
+
+        .trace-item:hover {
+            background: #e9ecef;
+            transform: translateX(5px);
+        }
+
+        .trace-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .trace-name {
+            font-weight: 600;
+            color: #333;
+            font-size: 1.1rem;
+        }
+
+        .trace-status {
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .trace-status.success {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .trace-status.error {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .trace-meta {
+            display: flex;
+            gap: 2rem;
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .trace-link {
+            margin-top: 0.5rem;
+        }
+
+        .trace-link a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 600;
+            transition: color 0.3s ease;
+        }
+
+        .trace-link a:hover {
+            color: #764ba2;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 3rem;
+            color: #666;
+        }
+
+        .error {
+            background: #fee2e2;
+            color: #991b1b;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+
+        .refresh-btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .refresh-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .user-input {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .user-input input {
+            flex: 1;
+            padding: 0.75rem 1rem;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+
+        .user-input input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 NexusAI Analytics</h1>
+            <p class="subtitle">Token Usage, Cost Analysis & LangSmith Traces</p>
+        </div>
+
+        <div class="user-input">
+            <input type="text" id="userId" placeholder="Enter User ID" value="test_user">
+            <button class="refresh-btn" onclick="loadAllData()">Load Analytics</button>
+        </div>
+
+        <div id="error-container"></div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Total Tokens</div>
+                <div class="stat-value" id="totalTokens">-</div>
+                <div class="stat-change">Loading...</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Total Cost</div>
+                <div class="stat-value" id="totalCost">-</div>
+                <div class="stat-change">Last 7 days</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Operations</div>
+                <div class="stat-value" id="totalOps">-</div>
+                <div class="stat-change">All time</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Avg Cost/Op</div>
+                <div class="stat-value" id="avgCost">-</div>
+                <div class="stat-change">Efficiency metric</div>
+            </div>
+        </div>
+
+        <div class="chart-container">
+            <h2 class="chart-title">Usage by Service</h2>
+            <div class="service-breakdown" id="serviceBreakdown">
+                <div class="loading">Loading service data...</div>
+            </div>
+        </div>
+
+        <div class="chart-container">
+            <h2 class="chart-title">Recent LangSmith Traces</h2>
+            <div class="traces-list" id="tracesList">
+                <div class="loading">Loading traces...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000'; // Update with your API URL
+
+        async function loadTokenUsage(userId) {
+            try {
+                const response = await fetch(`${API_BASE}/analytics/token-usage?user_id=${userId}`);
+                if (!response.ok) throw new Error('Failed to fetch token usage');
+                
+                const data = await response.json();
+                
+                document.getElementById('totalTokens').textContent = data.total_tokens.toLocaleString();
+                document.getElementById('totalCost').textContent = `$${data.total_cost_usd.toFixed(4)}`;
+                document.getElementById('totalOps').textContent = data.operations_count.toLocaleString();
+                
+                const avgCost = data.operations_count > 0 
+                    ? data.total_cost_usd / data.operations_count 
+                    : 0;
+                document.getElementById('avgCost').textContent = `$${avgCost.toFixed(6)}`;
+                
+                // Render service breakdown
+                renderServiceBreakdown(data.by_service);
+                
+            } catch (error) {
+                showError('Failed to load token usage: ' + error.message);
+            }
+        }
+
+        function renderServiceBreakdown(services) {
+            const container = document.getElementById('serviceBreakdown');
+            
+            if (Object.keys(services).length === 0) {
+                container.innerHTML = '<div class="loading">No service data available</div>';
+                return;
+            }
+            
+            const maxTokens = Math.max(...Object.values(services).map(s => s.tokens));
+            
+            container.innerHTML = Object.entries(services).map(([name, data]) => {
+                const percentage = (data.tokens / maxTokens) * 100;
+                return `
+                    <div class="service-item">
+                        <div class="service-name">${name}</div>
+                        <div class="service-bar" style="width: ${percentage}%">
+                            <div class="service-value">
+                                ${data.tokens.toLocaleString()} tokens ($${data.cost.toFixed(4)})
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function loadTraces(userId) {
+            try {
+                const response = await fetch(`${API_BASE}/analytics/langsmith-traces?user_id=${userId}&limit=10`);
+                if (!response.ok) throw new Error('Failed to fetch traces');
+                
+                const data = await response.json();
+                
+                if (!data.enabled) {
+                    document.getElementById('tracesList').innerHTML = `
+                        <div class="loading">
+                            LangSmith is not configured. Set LANGSMITH_API_KEY in .env
+                        </div>
+                    `;
+                    return;
+                }
+                
+                renderTraces(data.traces);
+                
+            } catch (error) {
+                showError('Failed to load traces: ' + error.message);
+            }
+        }
+
+        function renderTraces(traces) {
+            const container = document.getElementById('tracesList');
+            
+            if (traces.length === 0) {
+                container.innerHTML = '<div class="loading">No traces available</div>';
+                return;
+            }
+            
+            container.innerHTML = traces.map(trace => {
+                const startTime = new Date(trace.start_time);
+                const endTime = trace.end_time ? new Date(trace.end_time) : null;
+                const duration = endTime ? (endTime - startTime) : 0;
+                
+                return `
+                    <div class="trace-item">
+                        <div class="trace-header">
+                            <div class="trace-name">${trace.name}</div>
+                            <div class="trace-status ${trace.status}">${trace.status}</div>
+                        </div>
+                        <div class="trace-meta">
+                            <span>⏱️ ${duration}ms</span>
+                            <span>🔧 ${trace.run_type}</span>
+                            ${trace.metadata.model ? `<span>🤖 ${trace.metadata.model}</span>` : ''}
+                            ${trace.metadata.total_tokens ? `<span>📊 ${trace.metadata.total_tokens} tokens</span>` : ''}
+                        </div>
+                        <div class="trace-link">
+                            <a href="${trace.trace_url}" target="_blank">View in LangSmith →</a>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function showError(message) {
+            const container = document.getElementById('error-container');
+            container.innerHTML = `<div class="error">${message}</div>`;
+            setTimeout(() => {
+                container.innerHTML = '';
+            }, 5000);
+        }
+
+        async function loadAllData() {
+            const userId = document.getElementById('userId').value;
+            if (!userId) {
+                showError('Please enter a User ID');
+                return;
+            }
+            
+            await Promise.all([
+                loadTokenUsage(userId),
+                loadTraces(userId)
+            ]);
+        }
+
+        // Auto-load on page load
+        window.addEventListener('load', () => {
+            const userId = document.getElementById('userId').value;
+            if (userId) {
+                loadAllData();
+            }
+        });
+    </script>
+</body>
+</html>

@@ -20,6 +20,11 @@ from auth import verify_token
 from dotenv import load_dotenv
 load_dotenv() # Load from .env in CWD
 
+# LangSmith Integration
+import sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from langsmith_config import trace_llm_call, token_tracker
+
 # Use relative import for prompts to work when imported from parent directory
 try:
     from .prompts import PROMPTS
@@ -88,7 +93,8 @@ def b64encode_file(file: UploadFile):
     mime = file.content_type or "image/png"
     return base64.b64encode(data).decode('utf-8'), mime
 
-def call_nano_banana(api_key: str, prompt: str, images: List[dict] = None, model: str = "gemini-2.5-flash-image", grounding: bool = False, aspect_ratio: str = None, retries: int = 3, backoff: float = 1.5):
+@trace_llm_call(name="gemini_image_generation", service="ImageGeneration")
+def call_nano_banana(api_key: str, prompt: str, images: List[dict] = None, model: str = "gemini-2.5-flash-image", grounding: bool = False, aspect_ratio: str = None, retries: int = 3, backoff: float = 1.5, user_id: str = None, job_id: str = None):
     # Construct URL based on model
     url = API_BASE_URL.format(model=model)
     
@@ -146,6 +152,23 @@ def call_nano_banana(api_key: str, prompt: str, images: List[dict] = None, model
         # Extract Token Usage
         usage = data.get('usageMetadata', {})
         total_tokens = usage.get('totalTokenCount', 0)
+        input_tokens = usage.get('promptTokenCount', 0)
+        output_tokens = usage.get('candidatesTokenCount', 0)
+        
+        # Track token usage with LangSmith
+        if user_id and job_id:
+            try:
+                token_tracker.log_usage(
+                    service="ImageGeneration",
+                    operation="generate_image",
+                    model=model,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    user_id=user_id,
+                    job_id=job_id
+                )
+            except Exception as e:
+                logger.warning(f"Failed to log token usage: {e}")
         
         for p in parts_out:
             if 'inlineData' in p:
@@ -208,10 +231,16 @@ def generate_image(
     try:
         print(f"DEBUG: generate_image called with prompt='{prompt}' model='{model}' user_id='{user_id}'", flush=True)
         final_key = get_api_key(api_key)
+        
+        # Generate job_id for tracing
+        job_id = str(uuid.uuid4())
             
         system_prompt = random.choice(PROMPTS["generate_image"])
         full_prompt = f"{system_prompt} {prompt}"
-        img_b64, mime, error, status, tokens = call_nano_banana(final_key, full_prompt, model=model, grounding=grounding, aspect_ratio=aspect_ratio)
+        img_b64, mime, error, status, tokens = call_nano_banana(
+            final_key, full_prompt, model=model, grounding=grounding, 
+            aspect_ratio=aspect_ratio, user_id=user_id, job_id=job_id
+        )
         
         if img_b64:
             # Persistence Logic
